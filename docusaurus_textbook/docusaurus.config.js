@@ -59,12 +59,12 @@ const config = {
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       // Replace with your project's social card
-      image: 'img/ph-ai-logo.png',
+      image: 'img/ph-ai-logo.svg',
       navbar: {
         title: 'Physical AI & Humanoid Robotics Textbook',
         logo: {
-          alt: 'My Site Logo',
-          src: 'img/ph-ai-logo.png',
+          alt: 'Physical AI Robot Logo',
+          src: 'img/ph-ai-logo.svg',
         },
         items: [
           {
