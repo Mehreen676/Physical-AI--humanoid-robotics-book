@@ -1,0 +1,279 @@
+/* Yellow background with red accents theme */
+
+:root {
+  --ifm-color-primary: #d32f2f; /* Red */
+  --ifm-color-primary-dark: #b71c1c; /* Darker red */
+  --ifm-color-primary-darker: #9c0b0b; /* Even darker red */
+  --ifm-color-primary-light: #ff5252; /* Lighter red */
+  --ifm-color-primary-lighter: #ff6e40; /* Light orange-red */
+  --ifm-background-color: #fffde7; /* Light yellow */
+  --ifm-background-surface-primary: #fffacd; /* Lighter yellow */
+  --ifm-code-background: #fff9c4; /* Yellow code background */
+}
+
+/* Main body background */
+body {
+  background-color: #fffde7;
+}
+
+/* Header and navigation styling */
+.navbar {
+  background-color: #d32f2f;
+  color: white;
+}
+
+.navbar__brand {
+  color: white !important;
+}
+
+.navbar__item {
+  color: white !important;
+}
+
+.navbar__link {
+  color: white !important;
+}
+
+.navbar__link:hover {
+  color: #fffde7 !important;
+  background-color: #b71c1c;
+  border-radius: 4px;
+}
+
+/* Main content area */
+main {
+  background-color: #fffde7;
+}
+
+/* Headers */
+h1, h2, h3, h4, h5, h6 {
+  color: #d32f2f;
+}
+
+/* Links */
+a {
+  color: #d32f2f;
+  font-weight: 500;
+}
+
+a:hover {
+  color: #ff5252;
+  text-decoration: underline;
+}
+
+/* Buttons */
+.button {
+  background-color: #d32f2f;
+  border-color: #d32f2f;
+  color: white;
+}
+
+.button:hover {
+  background-color: #b71c1c;
+  border-color: #b71c1c;
+  color: white;
+}
+
+.button--primary {
+  background-color: #d32f2f;
+}
+
+.button--primary:hover {
+  background-color: #b71c1c;
+}
+
+.button--secondary {
+  background-color: #d32f2f;
+  border-color: #d32f2f;
+}
+
+.button--secondary:hover {
+  background-color: #b71c1c;
+  border-color: #b71c1c;
+}
+
+/* Cards and containers */
+.card {
+  background-color: #fffacd;
+  border: 2px solid #d32f2f;
+  box-shadow: 0 4px 12px rgba(211, 47, 47, 0.15);
+}
+
+.card:hover {
+  box-shadow: 0 8px 20px rgba(211, 47, 47, 0.25);
+}
+
+/* Footer */
+.footer {
+  background-color: #d32f2f;
+  color: white;
+}
+
+.footer__title {
+  color: white;
+}
+
+.footer__link-item {
+  color: #fffde7;
+}
+
+.footer__link-item:hover {
+  color: #fffacd;
+}
+
+/* Sidebar */
+.DocSearch-Button {
+  background: #fffde7;
+  border: 2px solid #d32f2f;
+}
+
+.DocSearch-Button:hover {
+  background: #fffacd;
+  border-color: #b71c1c;
+}
+
+/* Code blocks */
+code {
+  background-color: #fff9c4;
+  color: #d32f2f;
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+pre {
+  background-color: #fff9c4;
+  border-left: 4px solid #d32f2f;
+}
+
+pre code {
+  background-color: transparent;
+  color: inherit;
+}
+
+/* Tables */
+table {
+  border-collapse: collapse;
+}
+
+table thead {
+  background-color: #ffe082;
+  border-bottom: 3px solid #d32f2f;
+}
+
+table thead th {
+  color: #d32f2f;
+  font-weight: bold;
+}
+
+table tbody tr:hover {
+  background-color: #fffde7;
+}
+
+table tbody td {
+  border-bottom: 1px solid #ffe082;
+}
+
+/* Blockquotes */
+blockquote {
+  border-left: 4px solid #d32f2f;
+  background-color: #fffacd;
+  padding: 12px 16px;
+  margin: 16px 0;
+}
+
+blockquote p {
+  color: #d32f2f;
+}
+
+/* Alert boxes */
+.alert {
+  background-color: #fffacd;
+  border: 2px solid #d32f2f;
+  color: #d32f2f;
+}
+
+.alert--info {
+  background-color: #fffacd;
+  border-color: #d32f2f;
+}
+
+.alert--warning {
+  background-color: #fff9c4;
+  border-color: #ff5252;
+}
+
+.alert--danger {
+  background-color: #ffebee;
+  border-color: #d32f2f;
+}
+
+/* Pagination */
+.pagination__item--active {
+  background-color: #d32f2f;
+}
+
+.pagination__item--active a {
+  color: white;
+}
+
+.pagination__item a:hover {
+  background-color: #ffe082;
+  color: #d32f2f;
+}
+
+/* Tabs */
+.tabs__item {
+  color: #d32f2f;
+}
+
+.tabs__item--active {
+  background-color: #d32f2f;
+  color: white;
+  border-bottom: 3px solid #d32f2f;
+}
+
+.tabs__item:hover {
+  background-color: #fff9c4;
+}
+
+/* Hero section */
+header {
+  background: linear-gradient(135deg, #d32f2f, #ff5252) !important;
+  color: white;
+}
+
+header h1 {
+  color: white;
+}
+
+header p {
+  color: #fffde7;
+}
+
+/* Module cards on homepage */
+.theme-layout-main section div[style*="background:white"] {
+  background-color: #fffacd !important;
+  border: 2px solid #d32f2f;
+}
+
+/* Accent highlights */
+.highlight {
+  background-color: #ffe082;
+  color: #d32f2f;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* Badge styling */
+.badge {
+  background-color: #d32f2f;
+  color: white;
+}
+
+/* Focus states for accessibility */
+a:focus,
+button:focus,
+.button:focus {
+  outline: 3px solid #d32f2f;
+  outline-offset: 2px;
+}
