@@ -1,148 +1,157 @@
-/* Yellow background with red accents theme */
+/* Warm yellowish theme with gold and amber accents */
 
 :root {
-  --ifm-color-primary: #d32f2f; /* Red */
-  --ifm-color-primary-dark: #b71c1c; /* Darker red */
-  --ifm-color-primary-darker: #9c0b0b; /* Even darker red */
-  --ifm-color-primary-light: #ff5252; /* Lighter red */
-  --ifm-color-primary-lighter: #ff6e40; /* Light orange-red */
-  --ifm-background-color: #fffde7; /* Light yellow */
-  --ifm-background-surface-primary: #fffacd; /* Lighter yellow */
-  --ifm-code-background: #fff9c4; /* Yellow code background */
+  --ifm-color-primary: #f9a825; /* Golden yellow */
+  --ifm-color-primary-dark: #e89a1f; /* Darker gold */
+  --ifm-color-primary-darker: #d68a1a; /* Even darker gold */
+  --ifm-color-primary-light: #fbb042; /* Lighter gold */
+  --ifm-color-primary-lighter: #fcc056; /* Light amber */
+  --ifm-background-color: #fffef0; /* Warm cream-yellow */
+  --ifm-background-surface-primary: #fffef5; /* Very light yellow */
+  --ifm-code-background: #fff9e6; /* Light warm yellow */
 }
 
 /* Main body background */
 body {
-  background-color: #fffde7;
+  background-color: #fffef0;
 }
 
 /* Header and navigation styling */
 .navbar {
-  background-color: #d32f2f;
-  color: white;
+  background-color: #f9a825;
+  color: #2c2416;
 }
 
 .navbar__brand {
-  color: white !important;
+  color: #2c2416 !important;
 }
 
 .navbar__item {
-  color: white !important;
+  color: #2c2416 !important;
 }
 
 .navbar__link {
-  color: white !important;
+  color: #2c2416 !important;
+  font-weight: 500;
 }
 
 .navbar__link:hover {
-  color: #fffde7 !important;
-  background-color: #b71c1c;
+  color: #fffef0 !important;
+  background-color: #e89a1f;
   border-radius: 4px;
 }
 
 /* Main content area */
 main {
-  background-color: #fffde7;
+  background-color: #fffef0;
 }
 
 /* Headers */
 h1, h2, h3, h4, h5, h6 {
-  color: #d32f2f;
+  color: #f9a825;
 }
 
 /* Links */
 a {
-  color: #d32f2f;
+  color: #f9a825;
   font-weight: 500;
 }
 
 a:hover {
-  color: #ff5252;
+  color: #e89a1f;
   text-decoration: underline;
 }
 
 /* Buttons */
 .button {
-  background-color: #d32f2f;
-  border-color: #d32f2f;
-  color: white;
+  background-color: #f9a825;
+  border-color: #f9a825;
+  color: #2c2416;
+  font-weight: 600;
 }
 
 .button:hover {
-  background-color: #b71c1c;
-  border-color: #b71c1c;
-  color: white;
+  background-color: #e89a1f;
+  border-color: #e89a1f;
+  color: #2c2416;
 }
 
 .button--primary {
-  background-color: #d32f2f;
+  background-color: #f9a825;
+  color: #2c2416;
 }
 
 .button--primary:hover {
-  background-color: #b71c1c;
+  background-color: #e89a1f;
 }
 
 .button--secondary {
-  background-color: #d32f2f;
-  border-color: #d32f2f;
+  background-color: #f9a825;
+  border-color: #f9a825;
+  color: #2c2416;
 }
 
 .button--secondary:hover {
-  background-color: #b71c1c;
-  border-color: #b71c1c;
+  background-color: #e89a1f;
+  border-color: #e89a1f;
 }
 
 /* Cards and containers */
 .card {
-  background-color: #fffacd;
-  border: 2px solid #d32f2f;
-  box-shadow: 0 4px 12px rgba(211, 47, 47, 0.15);
+  background-color: #fffef5;
+  border: 2px solid #f9a825;
+  box-shadow: 0 4px 12px rgba(249, 168, 37, 0.15);
 }
 
 .card:hover {
-  box-shadow: 0 8px 20px rgba(211, 47, 47, 0.25);
+  box-shadow: 0 8px 20px rgba(249, 168, 37, 0.25);
+  border-color: #e89a1f;
 }
 
 /* Footer */
 .footer {
-  background-color: #d32f2f;
-  color: white;
+  background-color: #f9a825;
+  color: #2c2416;
 }
 
 .footer__title {
-  color: white;
+  color: #2c2416;
+  font-weight: 600;
 }
 
 .footer__link-item {
-  color: #fffde7;
+  color: #2c2416;
 }
 
 .footer__link-item:hover {
-  color: #fffacd;
+  color: #e89a1f;
+  text-decoration: underline;
 }
 
 /* Sidebar */
 .DocSearch-Button {
-  background: #fffde7;
-  border: 2px solid #d32f2f;
+  background: #fffef0;
+  border: 2px solid #f9a825;
+  color: #2c2416;
 }
 
 .DocSearch-Button:hover {
-  background: #fffacd;
-  border-color: #b71c1c;
+  background: #fff9e6;
+  border-color: #e89a1f;
 }
 
 /* Code blocks */
 code {
-  background-color: #fff9c4;
-  color: #d32f2f;
+  background-color: #fff9e6;
+  color: #f9a825;
   border-radius: 4px;
   padding: 2px 6px;
+  font-weight: 500;
 }
 
 pre {
-  background-color: #fff9c4;
-  border-left: 4px solid #d32f2f;
+  background-color: #fff9e6;
+  border-left: 4px solid #f9a825;
 }
 
 pre code {
@@ -156,124 +165,181 @@ table {
 }
 
 table thead {
-  background-color: #ffe082;
-  border-bottom: 3px solid #d32f2f;
+  background-color: #ffeccc;
+  border-bottom: 3px solid #f9a825;
 }
 
 table thead th {
-  color: #d32f2f;
+  color: #f9a825;
   font-weight: bold;
 }
 
 table tbody tr:hover {
-  background-color: #fffde7;
+  background-color: #fffef0;
 }
 
 table tbody td {
-  border-bottom: 1px solid #ffe082;
+  border-bottom: 1px solid #ffe6b3;
 }
 
 /* Blockquotes */
 blockquote {
-  border-left: 4px solid #d32f2f;
-  background-color: #fffacd;
+  border-left: 4px solid #f9a825;
+  background-color: #fffef5;
   padding: 12px 16px;
   margin: 16px 0;
 }
 
 blockquote p {
-  color: #d32f2f;
+  color: #f9a825;
 }
 
 /* Alert boxes */
 .alert {
-  background-color: #fffacd;
-  border: 2px solid #d32f2f;
-  color: #d32f2f;
+  background-color: #fffef5;
+  border: 2px solid #f9a825;
+  color: #f9a825;
 }
 
 .alert--info {
-  background-color: #fffacd;
-  border-color: #d32f2f;
+  background-color: #fffef5;
+  border-color: #f9a825;
 }
 
 .alert--warning {
-  background-color: #fff9c4;
-  border-color: #ff5252;
+  background-color: #fff9e6;
+  border-color: #fbb042;
 }
 
 .alert--danger {
-  background-color: #ffebee;
-  border-color: #d32f2f;
+  background-color: #ffeccc;
+  border-color: #f9a825;
 }
 
 /* Pagination */
 .pagination__item--active {
-  background-color: #d32f2f;
+  background-color: #f9a825;
 }
 
 .pagination__item--active a {
-  color: white;
+  color: #2c2416;
 }
 
 .pagination__item a:hover {
-  background-color: #ffe082;
-  color: #d32f2f;
+  background-color: #ffeccc;
+  color: #f9a825;
 }
 
 /* Tabs */
 .tabs__item {
-  color: #d32f2f;
+  color: #f9a825;
 }
 
 .tabs__item--active {
-  background-color: #d32f2f;
-  color: white;
-  border-bottom: 3px solid #d32f2f;
+  background-color: #f9a825;
+  color: #2c2416;
+  border-bottom: 3px solid #f9a825;
+  font-weight: 600;
 }
 
 .tabs__item:hover {
-  background-color: #fff9c4;
+  background-color: #fff9e6;
 }
 
 /* Hero section */
 header {
-  background: linear-gradient(135deg, #d32f2f, #ff5252) !important;
-  color: white;
+  background: linear-gradient(135deg, #f9a825, #fbb042) !important;
+  color: #2c2416;
 }
 
 header h1 {
-  color: white;
+  color: #2c2416;
+  font-weight: 700;
 }
 
 header p {
-  color: #fffde7;
+  color: #3d3428;
+  font-size: 1.1em;
 }
 
 /* Module cards on homepage */
 .theme-layout-main section div[style*="background:white"] {
-  background-color: #fffacd !important;
-  border: 2px solid #d32f2f;
+  background-color: #fffef5 !important;
+  border: 2px solid #f9a825;
 }
 
 /* Accent highlights */
 .highlight {
-  background-color: #ffe082;
-  color: #d32f2f;
+  background-color: #ffeccc;
+  color: #f9a825;
   padding: 2px 6px;
   border-radius: 4px;
+  font-weight: 600;
 }
 
 /* Badge styling */
 .badge {
-  background-color: #d32f2f;
-  color: white;
+  background-color: #f9a825;
+  color: #2c2416;
+  font-weight: 600;
 }
 
 /* Focus states for accessibility */
 a:focus,
 button:focus,
 .button:focus {
-  outline: 3px solid #d32f2f;
+  outline: 3px solid #f9a825;
   outline-offset: 2px;
+}
+
+/* Text selection */
+::selection {
+  background-color: #f9a825;
+  color: #2c2416;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: #fffef0;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #f9a825;
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #e89a1f;
+}
+
+/* Input fields */
+input,
+textarea,
+select {
+  background-color: #fffef5;
+  border: 2px solid #ffeccc;
+  color: #2c2416;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: #f9a825;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(249, 168, 37, 0.1);
+}
+
+/* Strong emphasis */
+strong {
+  color: #f9a825;
+  font-weight: 600;
+}
+
+/* Horizontal rules */
+hr {
+  border-color: #ffeccc;
 }
