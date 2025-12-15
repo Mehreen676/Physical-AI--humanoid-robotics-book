@@ -101,15 +101,15 @@ const config = {
             items: [
               {
                 label: 'Instagram',
-                href: 'https://instagram.com/subhan_kaladi',
+                href: 'https://www.instagram.com/mehreenzohair51/',
               },
               {
-                label: 'LinkenIN',
-                href: 'https://www.linkedin.com/in/subhankaladi/',
+                label: 'LinkedIn',
+                href: 'https://www.linkedin.com/in/mehreen-asghar-ali-683a66257/',
               },
               {
                 label: '(X)Twitter',
-                href: 'https://x.com/subhankaladi15',
+                href: 'https://x.com/mehreen676',
               },
             ],
           },
@@ -118,7 +118,7 @@ const config = {
             items: [
               {
                 label: 'GitHub',
-                href: 'https://github.com/subhankaladi',
+                href: 'https://github.com/Mehreen676',
               },
             ],
           },
