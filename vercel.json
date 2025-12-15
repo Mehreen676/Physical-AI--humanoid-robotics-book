@@ -1,0 +1,5 @@
+{
+  "buildCommand": "cd docusaurus_textbook && npm run build",
+  "outputDirectory": "docusaurus_textbook/build",
+  "rootDirectory": "docusaurus_textbook"
+}
