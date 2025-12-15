@@ -21,15 +21,17 @@ const config = {
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
 
-  // Even if you don't use internationalization, you can use this field to set
-  // useful metadata like html lang. For example, if your site is Chinese, you
-  // may want to replace "en" with "zh-Hans".
+  // Internationalization configuration
   i18n: {
     defaultLocale: 'en',
-    locales: ['en', 'ur'], // Added Urdu locale
+    locales: ['en', 'ur'],
+    localeConfigs: {
+      ur: {
+        label: 'اردو',
+        direction: 'rtl',
+      },
+    },
   },
-
-  
 
   presets: [
     [
@@ -72,23 +74,13 @@ const config = {
             label: 'Textbook',
           },
           {
-            href: 'https://github.com/subhankaladi',
+            href: 'https://github.com/Mehreen676/Physical-AI--humanoid-robotics-book',
             label: 'GitHub',
             position: 'right',
           },
           {
             type: 'localeDropdown',
             position: 'right',
-            i18n: {
-  defaultLocale: 'en',
-  locales: ['en', 'ur'],
-  localeConfigs: {
-    ur: {
-      label: 'اردو',
-      direction: 'rtl',
-    },
-  },
-},
           },
         ],
       },
