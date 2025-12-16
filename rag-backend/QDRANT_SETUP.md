@@ -26,8 +26,8 @@ From the Qdrant Cloud dashboard:
 Add to `.env` file:
 
 ```env
-QDRANT_URL=https://xxx-xxx-xxx.qdrant.io
-QDRANT_API_KEY=sk-...your-api-key...
+QDRANT_URL=https://1226c5c9-c8a8-4a11-aa69-0166c93ba368.europe-west3-0.gcp.cloud.qdrant.io
+QDRANT_API_KEY=sk-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.KnMZXZZ-ritUFBpl2OVASfgKEjm4J1F07XqI-r5goHc
 QDRANT_COLLECTION_NAME=book_v1.0_chapters
 ```
 
