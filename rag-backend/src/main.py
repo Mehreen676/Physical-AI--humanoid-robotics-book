@@ -19,7 +19,7 @@ from config import get_settings
 from ingest_service import get_ingest_service
 from retrieval_service import get_retriever
 from generation_service import get_generation_agent
-from database import add_session, add_message, get_session, DatabaseSession
+from database import add_session, add_message, get_session, get_session_history, DatabaseSession
 from validation import validate_response_in_context
 from embeddings import get_embedding_generator
 import time
@@ -148,6 +148,40 @@ class QueryResponse(BaseModel):
     input_tokens: int = Field(..., description="Tokens in LLM input")
     output_tokens: int = Field(..., description="Tokens in LLM output")
     error: str = Field(default=None, description="Error message if query failed")
+
+
+class MessageResponse(BaseModel):
+    """Response model for a single message in session history."""
+
+    message_id: str = Field(..., description="Unique message ID")
+    user_message: str = Field(..., description="User's query")
+    assistant_response: str = Field(..., description="Assistant's response")
+    mode: str = Field(..., description="Query mode: 'full_book' or 'selected_text'")
+    selected_text: str = Field(
+        default=None, description="Selected text (if selected_text mode)"
+    )
+    latency_ms: int = Field(
+        default=None, description="Query latency in milliseconds"
+    )
+    created_at: str = Field(..., description="Message creation timestamp (ISO format)")
+
+
+class SessionResponse(BaseModel):
+    """Response model for session with chat history."""
+
+    session_id: str = Field(..., description="Unique session ID")
+    user_id: str = Field(default=None, description="User identifier")
+    title: str = Field(default=None, description="Session title")
+    book_version: str = Field(..., description="Book version")
+    message_count: int = Field(..., description="Number of messages in session")
+    created_at: str = Field(..., description="Session creation timestamp (ISO format)")
+    updated_at: str = Field(..., description="Last update timestamp (ISO format)")
+    last_activity: str = Field(
+        ..., description="Last activity timestamp (ISO format)"
+    )
+    messages: list[MessageResponse] = Field(
+        ..., description="List of messages in session"
+    )
 
 
 @app.get("/health")
@@ -541,6 +575,94 @@ async def query_selected_text(request: QueryRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Selected-text query processing failed: {str(e)}",
+        )
+
+
+@app.get("/sessions/{session_id}", response_model=SessionResponse)
+async def get_session_endpoint(
+    session_id: str, limit: int = 50, offset: int = 0
+):
+    """
+    Retrieve chat session with message history.
+
+    Args:
+        session_id: The session ID to retrieve
+        limit: Number of messages to return (default 50, max 100)
+        offset: Pagination offset (default 0)
+
+    Returns:
+        SessionResponse with session details and message history
+
+    Raises:
+        HTTPException: If session not found or expired
+    """
+    try:
+        logger.info(
+            f"📋 Retrieving session: {session_id[:8]}... (limit={limit}, offset={offset})"
+        )
+
+        # Validate pagination parameters
+        limit = min(limit, 100)  # Max 100 messages
+        if limit < 1:
+            limit = 50
+        if offset < 0:
+            offset = 0
+
+        # Get session
+        session = get_session(session_id)
+
+        if not session:
+            logger.warning(f"⚠️ Session not found or expired: {session_id}")
+            raise HTTPException(
+                status_code=404, detail="Session not found or expired"
+            )
+
+        # Get message history
+        messages = get_session_history(
+            session_id=session_id, limit=limit, offset=offset
+        )
+
+        # Convert messages to response format
+        message_responses = [
+            MessageResponse(
+                message_id=str(msg.id),
+                user_message=msg.user_message,
+                assistant_response=msg.assistant_response or "",
+                mode=msg.mode,
+                selected_text=msg.selected_text,
+                latency_ms=msg.latency_ms,
+                created_at=msg.created_at.isoformat() if msg.created_at else None,
+            )
+            for msg in messages
+        ]
+
+        # Build response
+        response = SessionResponse(
+            session_id=session.session_id,
+            user_id=session.user_id,
+            title=session.title,
+            book_version=session.book_version,
+            message_count=session.message_count,
+            created_at=session.created_at.isoformat(),
+            updated_at=session.updated_at.isoformat(),
+            last_activity=session.last_activity.isoformat(),
+            messages=message_responses,
+        )
+
+        logger.info(
+            f"✅ Session retrieved: {session_id[:8]}... "
+            f"({len(message_responses)} messages, {session.message_count} total)"
+        )
+
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to retrieve session: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve session: {str(e)}",
         )
 
 

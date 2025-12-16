@@ -1,9 +1,17 @@
 /**
  * RAG Chatbot JavaScript SDK
  * Lightweight, framework-agnostic SDK for integrating RAG chatbot into web applications
+ * Enhanced with LocalStorage caching, offline support, and session history
  */
 
 export class RagChatSDK {
+  // Cache constants
+  static CACHE_PREFIX = 'rag_cache_';
+  static SESSION_KEY = 'rag_session_id';
+  static SESSIONS_CACHE_KEY = 'rag_sessions_cache';
+  static MAX_CACHED_SESSIONS = 10;
+  static AUTO_SYNC_TIMEOUT = 5000; // 5 seconds
+
   /**
    * Initialize RagChatSDK with configuration
    * @param {string} apiUrl - Backend API URL (e.g., 'http://localhost:8000')
@@ -18,6 +26,13 @@ export class RagChatSDK {
     // Session management
     this.sessionId = this._getOrCreateSessionId();
     this.bookVersion = options.bookVersion || 'v1.0';
+
+    // Caching
+    this._isOnlineCached = true;
+    this._syncInProgress = false;
+
+    // Initialize auto-sync
+    this._initAutoSync();
   }
 
   /**
@@ -25,12 +40,11 @@ export class RagChatSDK {
    * @private
    */
   _getOrCreateSessionId() {
-    const storageKey = 'rag_session_id';
-    let sessionId = localStorage.getItem(storageKey);
+    let sessionId = localStorage.getItem(RagChatSDK.SESSION_KEY);
 
     if (!sessionId) {
       sessionId = this._generateUUID();
-      localStorage.setItem(storageKey, sessionId);
+      localStorage.setItem(RagChatSDK.SESSION_KEY, sessionId);
     }
 
     return sessionId;
@@ -53,6 +67,170 @@ export class RagChatSDK {
    */
   getSessionId() {
     return this.sessionId;
+  }
+
+  /**
+   * Check if online (navigator.onLine + health check)
+   * @private
+   */
+  async _isOnline() {
+    // Quick check using navigator.onLine
+    if (!navigator.onLine) {
+      this._isOnlineCached = false;
+      return false;
+    }
+
+    try {
+      // Verify backend connectivity
+      const response = await fetch(`${this.apiUrl}/health`, {
+        method: 'GET',
+        timeout: 3000,
+      });
+      this._isOnlineCached = response.ok;
+      return response.ok;
+    } catch (error) {
+      this._isOnlineCached = false;
+      return false;
+    }
+  }
+
+  /**
+   * Initialize auto-sync: sync cache on page load and online event
+   * @private
+   */
+  _initAutoSync() {
+    // Sync on page load (only if online)
+    if (typeof window !== 'undefined') {
+      window.addEventListener('load', () => this._autoSync());
+      window.addEventListener('online', () => this._autoSync());
+    }
+  }
+
+  /**
+   * Auto-sync cached sessions with backend
+   * @private
+   */
+  async _autoSync() {
+    if (this._syncInProgress) return;
+
+    this._syncInProgress = true;
+    try {
+      const isOnline = await this._isOnline();
+      if (!isOnline) return;
+
+      // Sync current session
+      try {
+        const session = await this._makeRequest(`/sessions/${this.sessionId}`, 'GET');
+        this._updateSessionCache(session);
+      } catch (error) {
+        console.debug('Auto-sync failed:', error.message);
+      }
+    } finally {
+      this._syncInProgress = false;
+    }
+  }
+
+  /**
+   * Update session cache in localStorage
+   * @private
+   */
+  _updateSessionCache(sessionData) {
+    try {
+      const cacheKey = `${RagChatSDK.CACHE_PREFIX}${sessionData.session_id}`;
+      const cached = {
+        ...sessionData,
+        lastAccessed: Date.now(),
+      };
+      localStorage.setItem(cacheKey, JSON.stringify(cached));
+
+      // Update sessions cache (LRU tracking)
+      this._updateSessionsCacheIndex(sessionData.session_id);
+    } catch (error) {
+      if (error.name === 'QuotaExceededError') {
+        console.warn('LocalStorage quota exceeded, evicting old sessions');
+        this._evictLRUIfNeeded();
+        // Retry once
+        try {
+          const cacheKey = `${RagChatSDK.CACHE_PREFIX}${sessionData.session_id}`;
+          const cached = {
+            ...sessionData,
+            lastAccessed: Date.now(),
+          };
+          localStorage.setItem(cacheKey, JSON.stringify(cached));
+        } catch (retryError) {
+          console.error('Failed to cache session after eviction:', retryError);
+        }
+      }
+    }
+  }
+
+  /**
+   * Get cached session
+   * @private
+   */
+  _getCachedSession(sessionId) {
+    try {
+      const cacheKey = `${RagChatSDK.CACHE_PREFIX}${sessionId}`;
+      const cached = localStorage.getItem(cacheKey);
+      return cached ? JSON.parse(cached) : null;
+    } catch (error) {
+      console.error('Error reading cached session:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Update sessions cache index (for LRU tracking)
+   * @private
+   */
+  _updateSessionsCacheIndex(sessionId) {
+    try {
+      let sessionCache = localStorage.getItem(RagChatSDK.SESSIONS_CACHE_KEY);
+      let sessions = sessionCache ? JSON.parse(sessionCache) : [];
+
+      // Remove if already exists
+      sessions = sessions.filter(s => s.id !== sessionId);
+
+      // Add to front (most recently used)
+      sessions.unshift({
+        id: sessionId,
+        lastAccessed: Date.now(),
+      });
+
+      // Keep only recent sessions
+      sessions = sessions.slice(0, RagChatSDK.MAX_CACHED_SESSIONS);
+
+      localStorage.setItem(RagChatSDK.SESSIONS_CACHE_KEY, JSON.stringify(sessions));
+    } catch (error) {
+      console.error('Error updating sessions cache index:', error);
+    }
+  }
+
+  /**
+   * Evict least recently used (LRU) session if cache exceeds limit
+   * @private
+   */
+  _evictLRUIfNeeded() {
+    try {
+      let sessionCache = localStorage.getItem(RagChatSDK.SESSIONS_CACHE_KEY);
+      let sessions = sessionCache ? JSON.parse(sessionCache) : [];
+
+      // Find least recently used (last in array after sorting)
+      if (sessions.length >= RagChatSDK.MAX_CACHED_SESSIONS) {
+        // Remove oldest session (except current)
+        const toEvict = sessions
+          .filter(s => s.id !== this.sessionId)
+          .slice(-1)[0];
+
+        if (toEvict) {
+          const cacheKey = `${RagChatSDK.CACHE_PREFIX}${toEvict.id}`;
+          localStorage.removeItem(cacheKey);
+          console.debug(`Evicted LRU session: ${toEvict.id}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error evicting LRU session:', error);
+    }
   }
 
   /**
@@ -179,6 +357,13 @@ export class RagChatSDK {
         chapter_filter: options.chapterFilter || null,
       });
 
+      // Optimistic caching: cache response
+      this._cacheMessage('user', sanitizedQuery, response.sources || []);
+      this._cacheMessage('assistant', response.response, response.sources || []);
+
+      // Trigger background sync
+      this._autoSync().catch(() => {});
+
       return response;
     } catch (error) {
       throw new Error(`Query failed: ${error.message}`);
@@ -221,6 +406,13 @@ export class RagChatSDK {
         mode: 'selected_text',
       });
 
+      // Optimistic caching: cache response
+      this._cacheMessage('user', sanitizedQuery, response.sources || []);
+      this._cacheMessage('assistant', response.response, response.sources || []);
+
+      // Trigger background sync
+      this._autoSync().catch(() => {});
+
       return response;
     } catch (error) {
       throw new Error(`Selected-text query failed: ${error.message}`);
@@ -228,29 +420,84 @@ export class RagChatSDK {
   }
 
   /**
-   * Get session history (stub for Phase 3)
+   * Get session history with pagination
    * @param {string} sessionId - Session ID (defaults to current)
-   * @returns {Promise<object>} Session history
+   * @param {number} limit - Number of messages (default 50)
+   * @param {number} offset - Pagination offset (default 0)
+   * @returns {Promise<object>} Session history with messages
    */
-  async getSessionHistory(sessionId = null) {
-    // Phase 3: Implement full history retrieval from backend
-    // For now, return cached messages from localStorage
-    const cacheKey = `rag_messages_${sessionId || this.sessionId}`;
-    const cached = localStorage.getItem(cacheKey);
+  async getSessionHistory(sessionId = null, limit = 50, offset = 0) {
+    const targetSessionId = sessionId || this.sessionId;
 
-    return {
-      session_id: sessionId || this.sessionId,
-      messages: cached ? JSON.parse(cached) : [],
-    };
+    try {
+      // Try to fetch from backend first
+      const isOnline = await this._isOnline();
+
+      if (isOnline) {
+        const response = await this._makeRequest(
+          `/sessions/${targetSessionId}?limit=${limit}&offset=${offset}`,
+          'GET'
+        );
+
+        // Cache the session
+        this._updateSessionCache(response);
+
+        return response;
+      } else {
+        // Offline: return cached version
+        const cached = this._getCachedSession(targetSessionId);
+        if (cached) {
+          return {
+            ...cached,
+            offline: true,
+          };
+        }
+
+        // No cache available
+        return {
+          session_id: targetSessionId,
+          messages: [],
+          offline: true,
+          error: 'Offline mode: no cached data available',
+        };
+      }
+    } catch (error) {
+      // Fallback to cached version
+      const cached = this._getCachedSession(targetSessionId);
+      if (cached) {
+        return {
+          ...cached,
+          offline: true,
+          error: `Network error: ${error.message}`,
+        };
+      }
+
+      throw new Error(`Failed to retrieve session history: ${error.message}`);
+    }
   }
 
   /**
-   * Clear session data (logout)
+   * Clear session data (logout) and clear cache
    */
   clearSession() {
     const sessionId = this.sessionId;
-    localStorage.removeItem('rag_session_id');
+
+    // Clear localStorage entries for this session
+    localStorage.removeItem(RagChatSDK.SESSION_KEY);
+    localStorage.removeItem(`${RagChatSDK.CACHE_PREFIX}${sessionId}`);
     localStorage.removeItem(`rag_messages_${sessionId}`);
+
+    // Update sessions cache index
+    try {
+      let sessionCache = localStorage.getItem(RagChatSDK.SESSIONS_CACHE_KEY);
+      let sessions = sessionCache ? JSON.parse(sessionCache) : [];
+      sessions = sessions.filter(s => s.id !== sessionId);
+      localStorage.setItem(RagChatSDK.SESSIONS_CACHE_KEY, JSON.stringify(sessions));
+    } catch (error) {
+      console.error('Error clearing session from cache index:', error);
+    }
+
+    // Create new session
     this.sessionId = this._getOrCreateSessionId();
   }
 
@@ -269,7 +516,15 @@ export class RagChatSDK {
       timestamp: new Date().toISOString(),
     });
 
-    localStorage.setItem(cacheKey, JSON.stringify(messages));
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify(messages));
+    } catch (error) {
+      if (error.name === 'QuotaExceededError') {
+        // Clear old messages if quota exceeded
+        const recentMessages = messages.slice(-10);
+        localStorage.setItem(cacheKey, JSON.stringify(recentMessages));
+      }
+    }
   }
 
   /**

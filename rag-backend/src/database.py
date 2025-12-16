@@ -19,7 +19,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session as SQLSession
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 from config import get_settings
 
@@ -180,7 +180,7 @@ def get_db_session() -> SQLSession:
 
 # Helper functions for common database operations
 
-def add_session(session_id: str, user_id: str = None, title: str = None) -> ChatSession:
+def add_session(session_id: str, user_id: str = None, title: str = None, book_version: str = "v1.0") -> ChatSession:
     """Create a new chat session."""
     db = get_db()
     session = db.get_session()
@@ -189,6 +189,7 @@ def add_session(session_id: str, user_id: str = None, title: str = None) -> Chat
             session_id=session_id,
             user_id=user_id,
             title=title,
+            book_version=book_version,
         )
         session.add(chat_session)
         session.commit()
@@ -203,14 +204,54 @@ def add_session(session_id: str, user_id: str = None, title: str = None) -> Chat
 
 
 def get_session(session_id: str) -> ChatSession:
-    """Retrieve a chat session."""
+    """Retrieve a chat session. Returns None if session expired (>30 days inactive)."""
     db = get_db()
     session = db.get_session()
     try:
         chat_session = session.query(ChatSession).filter_by(
             session_id=session_id
         ).first()
+
+        # Check expiry: sessions inactive for >30 days are expired
+        if chat_session:
+            last_activity = chat_session.last_activity or chat_session.created_at
+            if datetime.utcnow() - last_activity > timedelta(days=30):
+                logger.info(f"⏰ Session {session_id} expired (inactive >30 days)")
+                return None
+
         return chat_session
+    finally:
+        session.close()
+
+
+def update_session(session_id: str, **kwargs) -> ChatSession:
+    """Update session metadata (title, book_version, etc.)."""
+    db = get_db()
+    session = db.get_session()
+    try:
+        chat_session = session.query(ChatSession).filter_by(
+            session_id=session_id
+        ).first()
+
+        if not chat_session:
+            logger.warning(f"⚠️ Session {session_id} not found for update")
+            return None
+
+        # Update allowed fields
+        for key, value in kwargs.items():
+            if hasattr(chat_session, key) and key not in ["id", "session_id", "created_at"]:
+                setattr(chat_session, key, value)
+                logger.debug(f"📝 Updated session {session_id}: {key}={value}")
+
+        # Always update last_activity
+        chat_session.last_activity = datetime.utcnow()
+        session.commit()
+        logger.info(f"✅ Updated session: {session_id}")
+        return chat_session
+    except Exception as e:
+        session.rollback()
+        logger.error(f"❌ Error updating session: {e}")
+        raise
     finally:
         session.close()
 
@@ -220,6 +261,7 @@ def add_message(
     user_message: str,
     assistant_response: str = None,
     mode: str = "full_book",
+    selected_text: str = None,
     source_chunk_ids: str = None,
     in_selected_text: bool = True,
     latency_ms: int = None,
@@ -233,6 +275,7 @@ def add_message(
             user_message=user_message,
             assistant_response=assistant_response,
             mode=mode,
+            selected_text=selected_text,
             source_chunk_ids=source_chunk_ids,
             in_selected_text=in_selected_text,
             latency_ms=latency_ms,
@@ -258,8 +301,8 @@ def add_message(
         session.close()
 
 
-def get_session_history(session_id: str, limit: int = 50) -> list:
-    """Get chat history for a session."""
+def get_session_history(session_id: str, limit: int = 50, offset: int = 0) -> list:
+    """Get chat history for a session with pagination support."""
     db = get_db()
     session = db.get_session()
     try:
@@ -267,6 +310,7 @@ def get_session_history(session_id: str, limit: int = 50) -> list:
             session.query(Message)
             .filter_by(session_id=session_id)
             .order_by(Message.created_at.desc())
+            .offset(offset)
             .limit(limit)
             .all()
         )
