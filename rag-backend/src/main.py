@@ -20,6 +20,8 @@ from ingest_service import get_ingest_service
 from retrieval_service import get_retriever
 from generation_service import get_generation_agent
 from database import add_session, add_message, get_session, DatabaseSession
+from validation import validate_response_in_context
+from embeddings import get_embedding_generator
 import time
 import uuid
 
@@ -376,6 +378,169 @@ async def query_content(request: QueryRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Query processing failed: {str(e)}",
+        )
+
+
+@app.post("/query-selected-text", response_model=QueryResponse)
+async def query_selected_text(request: QueryRequest):
+    """
+    Query using only user-selected text (no vector retrieval).
+
+    Workflow:
+    1. Validate selected_text length
+    2. Use selected_text as sole context
+    3. Generate response using LLM
+    4. Validate response is grounded in selected text
+    5. Store interaction in database
+    6. Return response with selected text as sole source
+
+    Args:
+        request: QueryRequest with query and selected_text
+
+    Returns:
+        QueryResponse with generated answer and selected text as source
+
+    Raises:
+        HTTPException: If query processing fails
+    """
+    query_start = time.time()
+
+    try:
+        logger.info(
+            f"❓ Selected-Text Query: '{request.query}' "
+            f"(session={request.session_id[:8]}...)"
+        )
+
+        # Validate query
+        if not request.query.strip():
+            raise HTTPException(
+                status_code=400, detail="Query cannot be empty"
+            )
+
+        # Validate selected_text
+        if not request.selected_text or not request.selected_text.strip():
+            raise HTTPException(
+                status_code=400, detail="Selected text cannot be empty"
+            )
+
+        selected_text = request.selected_text.strip()
+
+        # Validate selected_text character length
+        if len(selected_text) > settings.max_selected_text_characters:
+            raise HTTPException(
+                status_code=413,
+                detail=f"Selected text too long (max {settings.max_selected_text_characters} chars)",
+            )
+
+        # Validate selected_text token length
+        logger.info("📊 Validating selected text token count...")
+        embeddings = get_embedding_generator()
+        tokens = embeddings.estimate_tokens(selected_text)
+
+        if tokens > settings.max_selected_text_tokens:
+            logger.warning(
+                f"⚠️ Selected text truncated: {tokens} → {settings.max_selected_text_tokens} tokens"
+            )
+            # Truncate to token limit (simple approach: truncate text by proportion)
+            truncation_ratio = settings.max_selected_text_tokens / tokens
+            selected_text = selected_text[: int(len(selected_text) * truncation_ratio)]
+
+        # Step 1: Use selected_text as sole context (no retrieval)
+        context = f"[User Selected Text]\n{selected_text}"
+
+        # Step 2: Generate response
+        logger.info("🤖 Generating response (selected-text mode)...")
+        generator = get_generation_agent()
+
+        generated = generator.generate(
+            query=request.query,
+            context=context,
+            mode="selected_text",
+            selected_text=selected_text,
+        )
+
+        # Step 3: Server-side validation
+        logger.info("✔️ Validating response is grounded in selected text...")
+        is_valid, confidence = validate_response_in_context(
+            generated.content, selected_text
+        )
+
+        if not is_valid:
+            logger.warning(
+                f"⚠️ Response failed validation (confidence={confidence:.3f})"
+            )
+            # Replace with fallback message
+            generated.content = (
+                "I couldn't find an answer to your question in the selected text. "
+                "Try selecting more context or switching to full-book mode."
+            )
+
+        # Step 4: Store interaction in database
+        try:
+            db = DatabaseSession()
+            session_id = request.session_id
+
+            # Get or create session
+            session = get_session(session_id)
+            if not session:
+                session = add_session(
+                    session_id=session_id,
+                    user_id="anonymous",
+                    title=request.query[:50],
+                    book_version=request.book_version,
+                )
+
+            # Store message
+            add_message(
+                session_id=session_id,
+                user_message=request.query,
+                assistant_response=generated.content,
+                mode="selected_text",
+                selected_text=selected_text,
+                source_chunk_ids=[],  # No retrieval in selected-text mode
+                latency_ms=int((time.time() - query_start) * 1000),
+            )
+
+            logger.info(f"✅ Interaction stored (session={session_id[:8]}...)")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to store interaction: {e}")
+            # Continue anyway; don't fail the query
+
+        # Step 5: Format response
+        latency_ms = int((time.time() - query_start) * 1000)
+
+        # Return selected text as sole source
+        sources = [
+            SourceChunk(
+                doc_id="selected_text",
+                chapter="User Selection",
+                section="Highlighted Text",
+                similarity_score=1.0,
+                content=selected_text[:200],  # Truncate for response
+            )
+        ]
+
+        logger.info(
+            f"✅ Selected-text query complete: {latency_ms}ms, "
+            f"{generated.output_tokens} output tokens"
+        )
+
+        return QueryResponse(
+            response=generated.content,
+            sources=sources,
+            latency_ms=latency_ms,
+            mode="selected_text",
+            input_tokens=generated.input_tokens,
+            output_tokens=generated.output_tokens,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Selected-text query failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Selected-text query processing failed: {str(e)}",
         )
 
 

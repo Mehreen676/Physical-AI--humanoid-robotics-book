@@ -181,6 +181,24 @@ class EmbeddingGenerator:
         _tokens_used = {"input": 0, "total": 0}
         logger.info("✅ Token counter reset")
 
+    def estimate_tokens(self, text: str) -> int:
+        """
+        Estimate number of tokens in text using simple heuristic.
+
+        Uses approximate ratio: 1 token ≈ 4 characters (common for English text).
+        For more accurate estimation, would need to use tiktoken or similar.
+
+        Args:
+            text: Text to estimate token count for
+
+        Returns:
+            Estimated token count
+        """
+        # Simple heuristic: ~4 characters per token
+        # More accurate methods would use tiktoken with specific model
+        estimated = max(1, len(text) // 4)
+        return estimated
+
 
 # Singleton instance
 _embedding_generator_instance = None

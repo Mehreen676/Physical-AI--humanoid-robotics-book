@@ -130,6 +130,17 @@ const config = {
         darkTheme: prismThemes.dracula,
       },
     }),
+
+  // RAG Chatbot Configuration
+  customFields: {
+    ragChatbot: {
+      apiUrl: process.env.RAG_API_URL || 'http://localhost:8000',
+      enabled: process.env.REACT_APP_RAG_CHATBOT_ENABLED !== 'false',
+      maxQueryLength: 500,
+      maxSelectedTextLength: 10000,
+      bookVersion: 'v1.0',
+    },
+  },
 };
 
 export default config;
