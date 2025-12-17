@@ -5,7 +5,7 @@ Loads environment variables and validates required keys.
 
 from pydantic_settings import BaseSettings
 from pydantic import field_validator, ConfigDict
-from typing import List
+from typing import List, Optional
 import logging
 import os
 
@@ -47,6 +47,18 @@ class Settings(BaseSettings):
 
     # CORS Configuration (parsed from comma-separated string)
     allowed_origins_str: str = "http://localhost:3000"
+
+    # JWT/Auth Configuration (Phase 4+)
+    secret_key: str = "your-secret-key-change-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_expiration_hours: int = 24
+
+    # OAuth 2.0 Configuration (Phase 5 - optional, nullable)
+    github_client_id: Optional[str] = None
+    github_client_secret: Optional[str] = None
+    google_client_id: Optional[str] = None
+    google_client_secret: Optional[str] = None
+    oauth_redirect_uri: str = "http://localhost:3000/auth/callback"
 
     # Logging
     log_level: str = "INFO"

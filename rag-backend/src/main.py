@@ -3,9 +3,9 @@ RAG Chatbot Backend - FastAPI Application
 Integrated Retrieval-Augmented Generation chatbot for interactive learning.
 """
 
-from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi import FastAPI, HTTPException, Depends, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field, EmailStr
 import logging
 from datetime import datetime, timedelta
@@ -14,6 +14,11 @@ import sys
 import jwt
 import json
 from typing import Optional
+import httpx
+import secrets
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 # Add src directory to path for imports
 sys.path.insert(0, os.path.dirname(__file__))
@@ -51,6 +56,11 @@ app = FastAPI(
     redoc_url="/redoc" if settings.debug else None,
 )
 
+# Initialize rate limiter (Phase 5)
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -68,29 +78,43 @@ JWT_EXPIRATION_HOURS = 24
 
 
 def create_access_token(user_id: str, expires_delta: timedelta = None) -> str:
-    """Create a JWT access token."""
+    """Create a JWT access token with JWT ID (jti) for revocation support."""
     if expires_delta is None:
         expires_delta = timedelta(hours=JWT_EXPIRATION_HOURS)
 
     expire = datetime.utcnow() + expires_delta
-    to_encode = {"sub": str(user_id), "exp": expire}
+    to_encode = {
+        "sub": str(user_id),
+        "exp": expire,
+        "jti": str(uuid.uuid4()),  # JWT ID for token revocation (Phase 5)
+        "iat": datetime.utcnow(),
+    }
 
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
     return encoded_jwt
 
 
 def verify_token(token: str) -> dict:
-    """Verify and decode a JWT token."""
+    """Verify and decode a JWT token, checking revocation blacklist."""
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         user_id: str = payload.get("sub")
-        if user_id is None:
+        jti: str = payload.get("jti")
+
+        if user_id is None or jti is None:
             raise HTTPException(status_code=401, detail="Invalid token")
-        return {"user_id": user_id}
+
+        # Check if token is revoked (Phase 5)
+        if is_token_revoked(jti):
+            raise HTTPException(status_code=401, detail="Token has been revoked")
+
+        return {"user_id": user_id, "jti": jti}
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
+    except HTTPException:
+        raise
 
 
 async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
@@ -832,6 +856,7 @@ async def get_session_endpoint(
 # Authentication Endpoints (Phase 4)
 
 @app.post("/auth/signup", response_model=UserResponse, status_code=201)
+@limiter.limit("5/hour")  # 5 signups per hour per IP
 async def signup(request: SignupRequest):
     """
     Register a new user account.
@@ -882,6 +907,7 @@ async def signup(request: SignupRequest):
 
 
 @app.post("/auth/login", response_model=LoginResponse)
+@limiter.limit("10/minute")  # 10 login attempts per minute per IP
 async def login(request: LoginRequest):
     """
     Login a user and return JWT access token.
@@ -989,18 +1015,20 @@ async def logout(current_user: dict = Depends(get_current_user)):
     """
     Logout endpoint (placeholder for stateless JWT).
 
-    In a stateless JWT system, logout is handled client-side by discarding the token.
-    This endpoint serves as a confirmation endpoint.
-
     Args:
         current_user: Current user from JWT token (dependency)
 
     Returns:
         dict: Confirmation message
+
+    Note:
+        JWT tokens are stateless and continue to work until expiration.
+        This endpoint is a placeholder for stateless JWT authentication.
+        In Phase 5, implement token revocation with a blacklist.
     """
     try:
         user_id = current_user.get("user_id")
-        logger.info(f"👋 User logged out: {user_id[:8]}...")
+        logger.info(f"👋 User logout initiated: {user_id[:8]}...")
         return {"detail": "Logged out successfully"}
 
     except Exception as e:
