@@ -1015,7 +1015,7 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user)):
 @app.post("/auth/logout")
 async def logout(current_user: dict = Depends(get_current_user)):
     """
-    Logout endpoint (placeholder for stateless JWT).
+    Logout endpoint - revokes the JWT token.
 
     Args:
         current_user: Current user from JWT token (dependency)
@@ -1024,13 +1024,23 @@ async def logout(current_user: dict = Depends(get_current_user)):
         dict: Confirmation message
 
     Note:
-        JWT tokens are stateless and continue to work until expiration.
-        This endpoint is a placeholder for stateless JWT authentication.
-        In Phase 5, implement token revocation with a blacklist.
+        Revokes the JWT token by adding it to the blacklist.
+        Requires jti claim in JWT (standard for Phase 5+).
     """
     try:
         user_id = current_user.get("user_id")
-        logger.info(f"👋 User logout initiated: {user_id[:8]}...")
+        jti = current_user.get("jti")
+
+        if jti:
+            # Calculate token expiration time for revocation record
+            expires_at = datetime.utcnow() + timedelta(hours=JWT_EXPIRATION_HOURS)
+
+            # Revoke the token
+            revoke_token(jti, user_id, reason="user_logout", expires_at=expires_at)
+            logger.info(f"👋 User logged out and token revoked: {user_id[:8]}...")
+        else:
+            logger.warning(f"⚠️ Logout without jti for user: {user_id[:8]}...")
+
         return {"detail": "Logged out successfully"}
 
     except Exception as e:
