@@ -32,7 +32,8 @@ from database import (
     add_user, get_user_by_email, get_user_by_id, verify_password,
     get_user_analytics, add_query_metric, QueryMetrics,
     get_user_by_oauth_id, create_oauth_user, RevokedToken,
-    revoke_token, is_token_revoked
+    revoke_token, is_token_revoked,
+    get_user_cohort_analytics, get_funnel_metrics
 )
 from validation import validate_response_in_context
 from embeddings import get_embedding_generator
@@ -130,6 +131,14 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
 
     token = parts[1]
     return verify_token(token)
+
+
+async def get_admin_user(current_user: dict = Depends(get_current_user)) -> dict:
+    """Dependency to verify user is admin."""
+    user = get_user_by_id(current_user["user_id"])
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return current_user
 
 
 # Request/Response Models
@@ -1238,6 +1247,216 @@ async def oauth_callback(
     except Exception as e:
         logger.error(f"❌ OAuth callback error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="OAuth login failed")
+
+
+# ==================== Admin Models & Endpoints (Phase 5) ====================
+
+class AdminUserItem(BaseModel):
+    """Admin view of a user."""
+    user_id: str
+    email: str
+    full_name: Optional[str]
+    role: str
+    is_active: bool
+    is_admin: bool
+    oauth_provider: Optional[str]
+    created_at: str
+
+class AdminUsersListResponse(BaseModel):
+    """Admin users list response."""
+    users: list[AdminUserItem]
+    total: int
+    limit: int
+    offset: int
+
+class AdminUpdateRoleRequest(BaseModel):
+    """Request to update user role."""
+    role: str = Field(..., description="'user' or 'admin'")
+
+@app.get("/admin/users", response_model=AdminUsersListResponse)
+@limiter.limit("30/minute")
+async def list_users(
+    limit: int = 50,
+    offset: int = 0,
+    admin: dict = Depends(get_admin_user),
+    request=None,
+):
+    """List all users (admin only)."""
+    try:
+        from sqlalchemy import func
+        db = get_db()
+        session = db.get_session()
+        try:
+            # Get total count
+            total = session.query(func.count(User.id)).scalar() or 0
+
+            # Get paginated users
+            users = session.query(User).limit(limit).offset(offset).all()
+
+            user_items = [
+                AdminUserItem(
+                    user_id=str(u.id),
+                    email=u.email,
+                    full_name=u.full_name,
+                    role=u.role,
+                    is_active=u.is_active,
+                    is_admin=u.is_admin,
+                    oauth_provider=u.oauth_provider,
+                    created_at=u.created_at.isoformat(),
+                )
+                for u in users
+            ]
+
+            logger.info(f"📊 Admin retrieved users list: {len(users)} users")
+            return AdminUsersListResponse(
+                users=user_items,
+                total=total,
+                limit=limit,
+                offset=offset,
+            )
+        finally:
+            session.close()
+    except Exception as e:
+        logger.error(f"❌ Error listing users: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to list users")
+
+@app.get("/admin/users/{user_id}", response_model=AdminUserItem)
+@limiter.limit("30/minute")
+async def get_user_detail(
+    user_id: str,
+    admin: dict = Depends(get_admin_user),
+    request=None,
+):
+    """Get detailed user info (admin only)."""
+    try:
+        user = get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        logger.info(f"📋 Admin viewed user: {user.email}")
+        return AdminUserItem(
+            user_id=str(user.id),
+            email=user.email,
+            full_name=user.full_name,
+            role=user.role,
+            is_active=user.is_active,
+            is_admin=user.is_admin,
+            oauth_provider=user.oauth_provider,
+            created_at=user.created_at.isoformat(),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error getting user: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get user")
+
+@app.post("/admin/users/{user_id}/deactivate")
+@limiter.limit("10/minute")
+async def deactivate_user(
+    user_id: str,
+    admin: dict = Depends(get_admin_user),
+    request=None,
+):
+    """Deactivate user account (admin only)."""
+    try:
+        user = get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Prevent self-deactivation
+        if str(user.id) == admin["user_id"]:
+            raise HTTPException(status_code=400, detail="Cannot deactivate your own account")
+
+        db = get_db()
+        session = db.get_session()
+        try:
+            user.is_active = False
+            session.commit()
+            logger.info(f"🚫 Admin deactivated user: {user.email}")
+            return {"detail": "User deactivated successfully"}
+        finally:
+            session.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error deactivating user: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to deactivate user")
+
+@app.get("/admin/analytics/overview")
+@limiter.limit("30/minute")
+async def get_system_analytics(admin: dict = Depends(get_admin_user), request=None):
+    """Get system-wide analytics (admin only)."""
+    try:
+        from sqlalchemy import func
+        db = get_db()
+        session = db.get_session()
+        try:
+            # Count active users
+            total_users = session.query(func.count(User.id)).scalar() or 0
+            active_users = session.query(func.count(User.id)).filter(User.is_active == True).scalar() or 0
+
+            # Count queries
+            total_queries = session.query(func.count(QueryMetrics.id)).scalar() or 0
+
+            # Average response time
+            avg_response_time = session.query(func.avg(QueryMetrics.response_time_ms)).scalar() or 0
+
+            # Success rate
+            successful = session.query(func.count(QueryMetrics.id)).filter(QueryMetrics.success == True).scalar() or 0
+            success_rate = (successful / total_queries * 100) if total_queries > 0 else 0
+
+            logger.info(f"📊 Admin viewed system analytics")
+            return {
+                "total_users": total_users,
+                "active_users": active_users,
+                "total_queries": total_queries,
+                "avg_response_time_ms": float(avg_response_time),
+                "success_rate_percent": float(success_rate),
+            }
+        finally:
+            session.close()
+    except Exception as e:
+        logger.error(f"❌ Error getting system analytics: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get system analytics")
+
+
+# ==================== Advanced Analytics Endpoints (Phase 5 Wave 5) ====================
+
+@app.get("/analytics/cohorts")
+@limiter.limit("30/minute")
+async def get_cohort_analysis(
+    start_date: str,
+    end_date: str,
+    current_user: dict = Depends(get_current_user),
+    request=None,
+):
+    """Get cohort analytics (user signup cohort analysis)."""
+    try:
+        # Parse dates
+        start = datetime.fromisoformat(start_date)
+        end = datetime.fromisoformat(end_date)
+
+        result = get_user_cohort_analytics(start, end)
+        logger.info(f"📊 Cohort analysis: {result['total_users']} users")
+        return result
+    except Exception as e:
+        logger.error(f"❌ Cohort analysis error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get cohort analysis")
+
+@app.get("/analytics/funnel")
+@limiter.limit("30/minute")
+async def get_funnel_analysis(
+    admin: dict = Depends(get_admin_user),
+    request=None,
+):
+    """Get conversion funnel metrics (admin only)."""
+    try:
+        result = get_funnel_metrics()
+        logger.info(f"🔝 Funnel analysis complete")
+        return result
+    except Exception as e:
+        logger.error(f"❌ Funnel analysis error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get funnel analysis")
 
 
 # Analytics Endpoints (Phase 4)

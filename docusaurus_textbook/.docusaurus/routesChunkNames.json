@@ -1,0 +1,98 @@
+{
+  "/Physical-AI--humanoid-robotics-book/docs-48d": {
+    "__comp": "5e95c892",
+    "__context": {
+      "plugin": "aba21aa0"
+    }
+  },
+  "/Physical-AI--humanoid-robotics-book/docs-009": {
+    "__comp": "a7bd4aaa",
+    "__props": "6f30ed81"
+  },
+  "/Physical-AI--humanoid-robotics-book/docs-af9": {
+    "__comp": "a94703ab"
+  },
+  "/Physical-AI--humanoid-robotics-book/docs/advanced-ai-control/module-5-advanced-ai-03f": {
+    "__comp": "17896441",
+    "content": "e0d24761"
+  },
+  "/Physical-AI--humanoid-robotics-book/docs/appendix/glossary-2b5": {
+    "__comp": "17896441",
+    "content": "88884f83"
+  },
+  "/Physical-AI--humanoid-robotics-book/docs/appendix/rag-chatbot-integration-32c": {
+    "__comp": "17896441",
+    "content": "01e8efa9"
+  },
+  "/Physical-AI--humanoid-robotics-book/docs/appendix/references-84c": {
+    "__comp": "17896441",
+    "content": "2e82ce9c"
+  },
+  "/Physical-AI--humanoid-robotics-book/docs/appendix/resources-1d8": {
+    "__comp": "17896441",
+    "content": "c30d6c39"
+  },
+  "/Physical-AI--humanoid-robotics-book/docs/hardware-basics/module-3-hardware-11b": {
+    "__comp": "17896441",
+    "content": "c82c7672"
+  },
+  "/Physical-AI--humanoid-robotics-book/docs/humanoid-design/module-6-humanoid-design-b08": {
+    "__comp": "17896441",
+    "content": "eebfa656"
+  },
+  "/Physical-AI--humanoid-robotics-book/docs/intro-1e8": {
+    "__comp": "17896441",
+    "content": "0e384e19"
+  },
+  "/Physical-AI--humanoid-robotics-book/docs/introduction/intro-f9c": {
+    "__comp": "17896441",
+    "content": "8257eeb8"
+  },
+  "/Physical-AI--humanoid-robotics-book/docs/ros2-foundations/module-1-ros2-4ff": {
+    "__comp": "17896441",
+    "content": "f468a7ad"
+  },
+  "/Physical-AI--humanoid-robotics-book/docs/ros2-foundations/ros2-hands-on-73d": {
+    "__comp": "17896441",
+    "content": "5e4fa025"
+  },
+  "/Physical-AI--humanoid-robotics-book/docs/simulation/digital-twins-08b": {
+    "__comp": "17896441",
+    "content": "349d9f3b"
+  },
+  "/Physical-AI--humanoid-robotics-book/docs/simulation/gazebo-unity-872": {
+    "__comp": "17896441",
+    "content": "7f0a4cd2"
+  },
+  "/Physical-AI--humanoid-robotics-book/docs/simulation/module-2-simulation-6ba": {
+    "__comp": "17896441",
+    "content": "6772779c"
+  },
+  "/Physical-AI--humanoid-robotics-book/docs/vla-systems/module-4-vla-foundations-944": {
+    "__comp": "17896441",
+    "content": "6dfd6766"
+  },
+  "/Physical-AI--humanoid-robotics-book/docs/vla-systems/vla-action-5a8": {
+    "__comp": "17896441",
+    "content": "fe675a51"
+  },
+  "/Physical-AI--humanoid-robotics-book/docs/vla-systems/vla-hands-on-basic-ec3": {
+    "__comp": "17896441",
+    "content": "ccc79d7d"
+  },
+  "/Physical-AI--humanoid-robotics-book/docs/vla-systems/vla-language-df1": {
+    "__comp": "17896441",
+    "content": "4f472662"
+  },
+  "/Physical-AI--humanoid-robotics-book/docs/vla-systems/vla-vision-b8b": {
+    "__comp": "17896441",
+    "content": "4df0e478"
+  },
+  "/Physical-AI--humanoid-robotics-book/-112": {
+    "__comp": "c4f5d8e4",
+    "__context": {
+      "plugin": "a7456010"
+    },
+    "config": "5e9f5e1a"
+  }
+}

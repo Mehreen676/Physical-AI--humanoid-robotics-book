@@ -1,0 +1,31 @@
+{
+  "defaultLocale": "en",
+  "locales": [
+    "en",
+    "ur"
+  ],
+  "path": "i18n",
+  "currentLocale": "en",
+  "localeConfigs": {
+    "en": {
+      "label": "English",
+      "direction": "ltr",
+      "htmlLang": "en",
+      "calendar": "gregory",
+      "path": "en",
+      "translate": false,
+      "url": "https://mehreen676.github.io",
+      "baseUrl": "/Physical-AI--humanoid-robotics-book/"
+    },
+    "ur": {
+      "label": "اردو",
+      "direction": "rtl",
+      "htmlLang": "ur",
+      "calendar": "gregory",
+      "path": "ur",
+      "translate": true,
+      "url": "https://mehreen676.github.io",
+      "baseUrl": "/Physical-AI--humanoid-robotics-book/ur/"
+    }
+  }
+}

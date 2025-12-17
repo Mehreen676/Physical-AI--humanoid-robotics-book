@@ -118,16 +118,23 @@ class User(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(String(255), unique=True, nullable=False, index=True)
-    password_hash = Column(String(255), nullable=False)
+    password_hash = Column(String(255), nullable=True)  # Nullable for OAuth users
     full_name = Column(String(255), nullable=True)
     is_active = Column(Boolean, default=True, index=True)
+    # OAuth fields (Phase 5)
+    oauth_provider = Column(String(50), nullable=True, index=True)  # "github", "google", or null
+    oauth_id = Column(String(255), unique=True, nullable=True, index=True)  # Provider-specific user ID
+    profile_picture = Column(String(500), nullable=True)  # URL to profile picture from OAuth
+    # Admin fields (Phase 5)
+    role = Column(String(50), default="user", nullable=False, index=True)  # "user", "admin"
+    is_admin = Column(Boolean, default=False, index=True)  # Convenience flag
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
     def __repr__(self):
-        return f"<User(email={self.email}, is_active={self.is_active})>"
+        return f"<User(email={self.email}, is_active={self.is_active}, oauth_provider={self.oauth_provider})>"
 
 
 class QueryMetrics(Base):
@@ -151,6 +158,23 @@ class QueryMetrics(Base):
         return f"<QueryMetrics(user_id={self.user_id}, response_time_ms={self.response_time_ms})>"
 
 
+class RevokedToken(Base):
+    """Stores revoked JWT tokens for logout and security (Phase 5)."""
+
+    __tablename__ = "revoked_tokens"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    token_jti = Column(String(255), unique=True, nullable=False, index=True)  # JWT ID (jti claim)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    revoked_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = Column(DateTime, nullable=False)  # When token naturally expires
+    reason = Column(String(100), nullable=True)  # "user_logout", "admin_revoke", "security"
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<RevokedToken(user_id={self.user_id}, reason={self.reason})>"
+
+
 # Create indexes for common queries
 Index("idx_documents_chapter", Document.chapter)
 Index("idx_documents_book_version", Document.book_version)
@@ -158,6 +182,14 @@ Index("idx_documents_content_hash", Document.content_hash)
 Index("idx_sessions_user_id", ChatSession.user_id)
 Index("idx_sessions_book_version", ChatSession.book_version)
 Index("idx_messages_session_created", Message.session_id, Message.created_at)
+# Phase 5 - OAuth and Admin indexes
+Index("idx_users_oauth_provider", User.oauth_provider)
+Index("idx_users_role_active", User.role, User.is_active)  # For admin queries
+# Phase 5 - Analytics performance indexes
+Index("idx_query_metrics_user_created", QueryMetrics.user_id, QueryMetrics.created_at)  # For cohort analysis
+Index("idx_sessions_user_activity", ChatSession.user_id, ChatSession.last_activity)  # For admin dashboard
+# Phase 5 - Token revocation indexes
+Index("idx_revoked_tokens_expires", RevokedToken.expires_at)  # For cleanup queries
 
 
 class DatabaseSession:
@@ -543,6 +575,255 @@ def get_user_analytics(user_id: str) -> dict:
             "avg_response_time_ms": round(avg_response_time, 2),
             "total_tokens_used": total_tokens,
             "success_rate": round(success_rate, 2),
+        }
+    finally:
+        session.close()
+
+
+# ==================== Phase 5: OAuth & Token Revocation Functions ====================
+
+
+def get_user_by_oauth_id(oauth_provider: str, oauth_id: str) -> User:
+    """Get user by OAuth provider and ID."""
+    db = get_db()
+    session = db.get_session()
+    try:
+        user = (
+            session.query(User)
+            .filter_by(oauth_provider=oauth_provider, oauth_id=oauth_id)
+            .first()
+        )
+        return user
+    finally:
+        session.close()
+
+
+def create_oauth_user(
+    email: str,
+    oauth_provider: str,
+    oauth_id: str,
+    full_name: str = None,
+    profile_picture: str = None,
+) -> User:
+    """Create a new user from OAuth provider."""
+    db = get_db()
+    session = db.get_session()
+    try:
+        # Check if user already exists by email
+        existing = session.query(User).filter_by(email=email).first()
+        if existing:
+            # Update with OAuth info if not already set
+            if not existing.oauth_provider:
+                existing.oauth_provider = oauth_provider
+                existing.oauth_id = oauth_id
+                if profile_picture:
+                    existing.profile_picture = profile_picture
+                session.commit()
+            return existing
+
+        # Create new OAuth user
+        user = User(
+            email=email,
+            password_hash=None,  # OAuth users don't have passwords
+            full_name=full_name,
+            oauth_provider=oauth_provider,
+            oauth_id=oauth_id,
+            profile_picture=profile_picture,
+            is_active=True,
+            role="user",
+            is_admin=False,
+        )
+        session.add(user)
+        session.commit()
+        logger.info(f"✅ Created OAuth user: {email} ({oauth_provider})")
+        return user
+    except Exception as e:
+        session.rollback()
+        logger.error(f"❌ Error creating OAuth user: {e}")
+        raise
+    finally:
+        session.close()
+
+
+def revoke_token(token_jti: str, user_id: str, reason: str = "user_logout", expires_at: datetime = None) -> RevokedToken:
+    """Add a JWT token to the revocation blacklist."""
+    db = get_db()
+    session = db.get_session()
+    try:
+        # If no expiry time provided, assume 24 hours from now
+        if expires_at is None:
+            expires_at = datetime.utcnow() + timedelta(hours=24)
+
+        revoked = RevokedToken(
+            token_jti=token_jti,
+            user_id=user_id,
+            expires_at=expires_at,
+            reason=reason,
+        )
+        session.add(revoked)
+        session.commit()
+        logger.debug(f"✅ Revoked token: {token_jti[:8]}... (reason: {reason})")
+        return revoked
+    except Exception as e:
+        session.rollback()
+        logger.error(f"❌ Error revoking token: {e}")
+        raise
+    finally:
+        session.close()
+
+
+def is_token_revoked(token_jti: str) -> bool:
+    """Check if a JWT token is on the revocation blacklist."""
+    db = get_db()
+    session = db.get_session()
+    try:
+        revoked = session.query(RevokedToken).filter_by(token_jti=token_jti).first()
+        return revoked is not None
+    finally:
+        session.close()
+
+
+def cleanup_expired_revoked_tokens() -> int:
+    """Remove expired tokens from revocation blacklist (maintenance task)."""
+    db = get_db()
+    session = db.get_session()
+    try:
+        now = datetime.utcnow()
+        deleted = (
+            session.query(RevokedToken)
+            .filter(RevokedToken.expires_at < now)
+            .delete()
+        )
+        session.commit()
+        if deleted > 0:
+            logger.info(f"✅ Cleaned up {deleted} expired revoked tokens")
+        return deleted
+    except Exception as e:
+        session.rollback()
+        logger.error(f"❌ Error cleaning up revoked tokens: {e}")
+        raise
+    finally:
+        session.close()
+
+
+# ==================== Wave 5: Advanced Analytics (Phase 5) ====================
+
+def get_user_cohort_analytics(cohort_start: datetime, cohort_end: datetime) -> dict:
+    """Get analytics for users who signed up in a date range (cohort analysis)."""
+    db = get_db()
+    session = db.get_session()
+    try:
+        from sqlalchemy import func
+        
+        # Users created in date range
+        cohort_users = session.query(User).filter(
+            User.created_at >= cohort_start,
+            User.created_at <= cohort_end
+        ).all()
+        
+        total_users = len(cohort_users)
+        if total_users == 0:
+            return {
+                "cohort_start": cohort_start.isoformat(),
+                "cohort_end": cohort_end.isoformat(),
+                "total_users": 0,
+                "active_users": 0,
+                "avg_queries_per_user": 0,
+                "avg_session_duration_minutes": 0,
+            }
+        
+        user_ids = [str(u.id) for u in cohort_users]
+        
+        # Query metrics for cohort
+        metrics = session.query(QueryMetrics).filter(
+            QueryMetrics.user_id.in_(user_ids)
+        ).all()
+        
+        total_queries = len(metrics)
+        avg_queries = total_queries / total_users if total_users > 0 else 0
+        
+        # Active users (those who made at least 1 query)
+        active_user_ids = set(str(m.user_id) for m in metrics)
+        active_users = len(active_user_ids)
+        
+        logger.info(f"📊 Cohort analysis: {total_users} users, {total_queries} queries")
+        return {
+            "cohort_start": cohort_start.isoformat(),
+            "cohort_end": cohort_end.isoformat(),
+            "total_users": total_users,
+            "active_users": active_users,
+            "avg_queries_per_user": round(avg_queries, 2),
+            "retention_rate": round((active_users / total_users * 100), 2) if total_users > 0 else 0,
+        }
+    finally:
+        session.close()
+
+
+def get_funnel_metrics() -> dict:
+    """Get conversion funnel metrics."""
+    db = get_db()
+    session = db.get_session()
+    try:
+        from sqlalchemy import func
+        
+        # Total users
+        total_users = session.query(func.count(User.id)).scalar() or 0
+        
+        # Users with at least 1 query
+        users_with_queries = session.query(
+            func.count(func.distinct(QueryMetrics.user_id))
+        ).scalar() or 0
+        
+        # Users with 5+ queries
+        user_query_counts = session.query(
+            QueryMetrics.user_id,
+            func.count(QueryMetrics.id).label('count')
+        ).group_by(QueryMetrics.user_id).all()
+        
+        users_5plus = len([u for u in user_query_counts if u.count >= 5])
+        users_10plus = len([u for u in user_query_counts if u.count >= 10])
+        
+        # Calculate conversion rates
+        step1_rate = (users_with_queries / total_users * 100) if total_users > 0 else 0
+        step2_rate = (users_5plus / total_users * 100) if total_users > 0 else 0
+        step3_rate = (users_10plus / total_users * 100) if total_users > 0 else 0
+        
+        logger.info(f"🔝 Funnel: Signup→Query: {step1_rate:.1f}%, Query→5x: {step2_rate:.1f}%, Query→10x: {step3_rate:.1f}%")
+        return {
+            "total_signups": total_users,
+            "users_with_1plus_query": users_with_queries,
+            "users_with_5plus_queries": users_5plus,
+            "users_with_10plus_queries": users_10plus,
+            "signup_to_query_conversion": round(step1_rate, 2),
+            "query_to_5x_conversion": round(step2_rate, 2),
+            "query_to_10x_conversion": round(step3_rate, 2),
+        }
+    finally:
+        session.close()
+
+
+# ==================== Wave 6: Performance Optimization (Phase 5) ====================
+
+def optimize_analytics_aggregations():
+    """Optimize analytics queries using SQL aggregations instead of Python."""
+    from sqlalchemy import func
+    db = get_db()
+    session = db.get_session()
+    try:
+        # Pre-calculate and cache common aggregations
+        result = session.query(
+            func.count(QueryMetrics.id).label('total_queries'),
+            func.avg(QueryMetrics.response_time_ms).label('avg_response_time'),
+            func.sum(QueryMetrics.input_tokens + QueryMetrics.output_tokens).label('total_tokens'),
+            func.avg(func.cast(QueryMetrics.success, Integer)).label('success_rate')
+        ).first()
+        
+        logger.info("✅ Analytics aggregations optimized with SQL")
+        return {
+            "total_queries": result.total_queries or 0,
+            "avg_response_time_ms": float(result.avg_response_time or 0),
+            "total_tokens": result.total_tokens or 0,
+            "success_rate": float(result.success_rate or 0),
         }
     finally:
         session.close()
