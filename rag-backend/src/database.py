@@ -22,6 +22,7 @@ import uuid
 from datetime import datetime, timedelta
 import logging
 from config import get_settings
+import bcrypt
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +109,46 @@ class Message(Base):
 
     def __repr__(self):
         return f"<Message(session_id={self.session_id}, mode={self.mode})>"
+
+
+class User(Base):
+    """Stores user accounts for authentication and session ownership."""
+
+    __tablename__ = "users"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    full_name = Column(String(255), nullable=True)
+    is_active = Column(Boolean, default=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    def __repr__(self):
+        return f"<User(email={self.email}, is_active={self.is_active})>"
+
+
+class QueryMetrics(Base):
+    """Stores query metrics for analytics and performance tracking."""
+
+    __tablename__ = "query_metrics"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    session_id = Column(String(255), ForeignKey("chat_sessions.session_id", ondelete="CASCADE"), nullable=False, index=True)
+    query_text = Column(Text, nullable=False)
+    response_time_ms = Column(Integer, nullable=False)
+    input_tokens = Column(Integer, nullable=True)
+    output_tokens = Column(Integer, nullable=True)
+    model_used = Column(String(100), nullable=False)
+    success = Column(Boolean, default=True)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    def __repr__(self):
+        return f"<QueryMetrics(user_id={self.user_id}, response_time_ms={self.response_time_ms})>"
 
 
 # Create indexes for common queries
@@ -349,5 +390,159 @@ def add_document(
         session.rollback()
         logger.error(f"❌ Error adding document: {e}")
         raise
+    finally:
+        session.close()
+
+
+# Password hashing utilities (Phase 4)
+
+def hash_password(password: str) -> str:
+    """Hash a password using bcrypt (12 rounds)."""
+    salt = bcrypt.gensalt(rounds=12)
+    hashed = bcrypt.hashpw(password.encode("utf-8"), salt)
+    return hashed.decode("utf-8")
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+    """Verify a password against its hash."""
+    return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
+
+
+# User management functions (Phase 4)
+
+def add_user(email: str, password: str, full_name: str = None) -> User:
+    """Create a new user account."""
+    db = get_db()
+    session = db.get_session()
+    try:
+        # Check if user already exists
+        existing = session.query(User).filter_by(email=email).first()
+        if existing:
+            logger.warning(f"⚠️ User already exists: {email}")
+            raise ValueError("Email already registered")
+
+        password_hash = hash_password(password)
+        user = User(
+            email=email,
+            password_hash=password_hash,
+            full_name=full_name,
+        )
+        session.add(user)
+        session.commit()
+        logger.info(f"✅ Created user: {email}")
+        return user
+    except Exception as e:
+        session.rollback()
+        logger.error(f"❌ Error creating user: {e}")
+        raise
+    finally:
+        session.close()
+
+
+def get_user_by_email(email: str) -> User:
+    """Retrieve a user by email."""
+    db = get_db()
+    session = db.get_session()
+    try:
+        user = session.query(User).filter_by(email=email).first()
+        return user
+    finally:
+        session.close()
+
+
+def get_user_by_id(user_id: str) -> User:
+    """Retrieve a user by ID."""
+    db = get_db()
+    session = db.get_session()
+    try:
+        user = session.query(User).filter_by(id=user_id).first()
+        return user
+    finally:
+        session.close()
+
+
+def get_user_sessions(user_id: str, limit: int = 50, offset: int = 0) -> list:
+    """Get all sessions for a user."""
+    db = get_db()
+    session = db.get_session()
+    try:
+        sessions = (
+            session.query(ChatSession)
+            .filter_by(user_id=str(user_id))
+            .order_by(ChatSession.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+        return sessions
+    finally:
+        session.close()
+
+
+def add_query_metric(
+    session_id: str,
+    query_text: str,
+    response_time_ms: int,
+    model_used: str = "gpt-4o",
+    input_tokens: int = None,
+    output_tokens: int = None,
+    user_id: str = None,
+    success: bool = True,
+    error_message: str = None,
+) -> QueryMetrics:
+    """Record a query metric for analytics."""
+    db = get_db()
+    session = db.get_session()
+    try:
+        metric = QueryMetrics(
+            user_id=user_id,
+            session_id=session_id,
+            query_text=query_text,
+            response_time_ms=response_time_ms,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            model_used=model_used,
+            success=success,
+            error_message=error_message,
+        )
+        session.add(metric)
+        session.commit()
+        logger.debug(f"✅ Recorded query metric: {session_id} ({response_time_ms}ms)")
+        return metric
+    except Exception as e:
+        session.rollback()
+        logger.error(f"❌ Error recording query metric: {e}")
+        raise
+    finally:
+        session.close()
+
+
+def get_user_analytics(user_id: str) -> dict:
+    """Get aggregate analytics for a user."""
+    db = get_db()
+    session = db.get_session()
+    try:
+        metrics = session.query(QueryMetrics).filter_by(user_id=user_id).all()
+
+        if not metrics:
+            return {
+                "total_queries": 0,
+                "avg_response_time_ms": 0,
+                "total_tokens_used": 0,
+                "success_rate": 0.0,
+            }
+
+        total_queries = len(metrics)
+        avg_response_time = sum(m.response_time_ms for m in metrics) / total_queries
+        total_tokens = sum((m.input_tokens or 0) + (m.output_tokens or 0) for m in metrics)
+        successful = sum(1 for m in metrics if m.success)
+        success_rate = (successful / total_queries * 100) if total_queries > 0 else 0
+
+        return {
+            "total_queries": total_queries,
+            "avg_response_time_ms": round(avg_response_time, 2),
+            "total_tokens_used": total_tokens,
+            "success_rate": round(success_rate, 2),
+        }
     finally:
         session.close()
