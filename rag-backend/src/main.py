@@ -30,7 +30,9 @@ from generation_service import get_generation_agent
 from database import (
     add_session, add_message, get_session, get_session_history, DatabaseSession,
     add_user, get_user_by_email, get_user_by_id, verify_password,
-    get_user_analytics, add_query_metric, QueryMetrics
+    get_user_analytics, add_query_metric, QueryMetrics,
+    get_user_by_oauth_id, create_oauth_user, RevokedToken,
+    revoke_token, is_token_revoked
 )
 from validation import validate_response_in_context
 from embeddings import get_embedding_generator
@@ -1037,6 +1039,195 @@ async def logout(current_user: dict = Depends(get_current_user)):
             status_code=500,
             detail="Logout failed",
         )
+
+
+# ==================== OAuth Endpoints (Phase 5) ====================
+
+# Store OAuth state tokens temporarily (in production, use Redis)
+_oauth_states = {}
+
+def _get_oauth_provider_config(provider: str) -> dict:
+    """Get OAuth provider configuration."""
+    if provider == "github":
+        return {
+            "client_id": settings.github_client_id,
+            "client_secret": settings.github_client_secret,
+            "auth_url": "https://github.com/login/oauth/authorize",
+            "token_url": "https://github.com/login/oauth/access_token",
+            "user_url": "https://api.github.com/user",
+            "email_url": "https://api.github.com/user/emails",
+        }
+    elif provider == "google":
+        return {
+            "client_id": settings.google_client_id,
+            "client_secret": settings.google_client_secret,
+            "auth_url": "https://accounts.google.com/o/oauth2/v2/auth",
+            "token_url": "https://oauth2.googleapis.com/token",
+            "user_url": "https://openidconnect.googleapis.com/v1/userinfo",
+            "scopes": "openid email profile",
+        }
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported OAuth provider")
+
+
+@app.get("/auth/oauth/{provider}/login")
+@limiter.limit("20/hour")
+async def oauth_login(provider: str, request):
+    """
+    Redirect to OAuth provider authorization page.
+
+    Args:
+        provider: OAuth provider ("github" or "google")
+
+    Returns:
+        RedirectResponse to OAuth provider
+    """
+    try:
+        config = _get_oauth_provider_config(provider)
+        if not config.get("client_id") or not config.get("client_secret"):
+            raise HTTPException(status_code=503, detail=f"{provider.title()} OAuth is not configured")
+
+        # Generate state token for CSRF protection
+        state = secrets.token_urlsafe(32)
+        _oauth_states[state] = {"provider": provider, "created_at": datetime.utcnow()}
+
+        # Build authorization URL
+        params = {
+            "client_id": config["client_id"],
+            "redirect_uri": settings.oauth_redirect_uri,
+            "response_type": "code",
+            "state": state,
+            "scope": config.get("scopes", "user:email"),
+        }
+
+        auth_url = f"{config['auth_url']}?" + "&".join(f"{k}={v}" for k, v in params.items())
+        logger.info(f"🔐 OAuth login initiated for {provider}")
+        return RedirectResponse(url=auth_url)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ OAuth login error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="OAuth login failed")
+
+
+@app.get("/auth/oauth/{provider}/callback")
+async def oauth_callback(
+    provider: str,
+    code: str = Query(...),
+    state: str = Query(...),
+):
+    """
+    Handle OAuth provider callback and create/login user.
+
+    Args:
+        provider: OAuth provider ("github" or "google")
+        code: Authorization code from provider
+        state: State token for CSRF validation
+
+    Returns:
+        LoginResponse with JWT token and user info
+    """
+    try:
+        # Validate state token
+        if state not in _oauth_states:
+            logger.warning(f"⚠️ Invalid OAuth state token")
+            raise HTTPException(status_code=400, detail="Invalid state token")
+
+        state_data = _oauth_states.pop(state)
+        if (datetime.utcnow() - state_data["created_at"]).total_seconds() > 600:  # 10 min expiry
+            raise HTTPException(status_code=400, detail="State token expired")
+
+        config = _get_oauth_provider_config(provider)
+
+        # Exchange code for access token
+        async with httpx.AsyncClient() as client:
+            token_response = await client.post(
+                config["token_url"],
+                data={
+                    "client_id": config["client_id"],
+                    "client_secret": config["client_secret"],
+                    "code": code,
+                    "redirect_uri": settings.oauth_redirect_uri,
+                    "grant_type": "authorization_code",
+                },
+                headers={"Accept": "application/json"},
+            )
+            token_response.raise_for_status()
+            tokens = token_response.json()
+            access_token = tokens.get("access_token")
+
+            if not access_token:
+                raise HTTPException(status_code=400, detail="Failed to get access token")
+
+            # Fetch user info from provider
+            user_response = await client.get(
+                config["user_url"],
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            user_response.raise_for_status()
+            oauth_user = user_response.json()
+
+        # Extract user info based on provider
+        if provider == "github":
+            oauth_id = str(oauth_user.get("id"))
+            email = oauth_user.get("email")
+            # If primary email not in response, fetch from email endpoint
+            if not email:
+                async with httpx.AsyncClient() as client:
+                    emails_response = await client.get(
+                        config["email_url"],
+                        headers={"Authorization": f"Bearer {access_token}"},
+                    )
+                    emails = emails_response.json()
+                    email = next((e["email"] for e in emails if e["primary"]), emails[0]["email"] if emails else None)
+            full_name = oauth_user.get("name")
+            profile_picture = oauth_user.get("avatar_url")
+        elif provider == "google":
+            oauth_id = oauth_user.get("sub")
+            email = oauth_user.get("email")
+            full_name = oauth_user.get("name")
+            profile_picture = oauth_user.get("picture")
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported provider")
+
+        if not email:
+            raise HTTPException(status_code=400, detail="Could not retrieve email from OAuth provider")
+
+        # Create or get user
+        existing_oauth_user = get_user_by_oauth_id(provider, oauth_id)
+        if existing_oauth_user:
+            user = existing_oauth_user
+            logger.info(f"✅ OAuth user logged in: {email} ({provider})")
+        else:
+            user = create_oauth_user(
+                email=email,
+                oauth_provider=provider,
+                oauth_id=oauth_id,
+                full_name=full_name,
+                profile_picture=profile_picture,
+            )
+            logger.info(f"✅ New OAuth user created: {email} ({provider})")
+
+        # Check if account is active
+        if not user.is_active:
+            raise HTTPException(status_code=403, detail="Account is inactive")
+
+        # Create JWT token
+        jwt_token = create_access_token(str(user.id))
+        expires_in = JWT_EXPIRATION_HOURS * 3600
+
+        return LoginResponse(
+            access_token=jwt_token,
+            token_type="bearer",
+            expires_in=expires_in,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ OAuth callback error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="OAuth login failed")
 
 
 # Analytics Endpoints (Phase 4)
