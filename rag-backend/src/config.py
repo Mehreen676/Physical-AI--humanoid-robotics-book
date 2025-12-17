@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class Settings(BaseSettings):
     """Application configuration settings."""
 
-    model_config = ConfigDict(env_file=".env", case_sensitive=False)
+    model_config = ConfigDict(env_file=".env", case_sensitive=False, extra='allow')
 
     # FastAPI Configuration
     debug: bool = False

@@ -80,8 +80,8 @@ def validate_api_key_format(key: str) -> bool:
     if key.count("_") < 2:
         return False
 
-    # Minimum reasonable length (should be 60+ chars)
-    if len(key) < 60:
+    # Minimum reasonable length (should be 50+ chars for rk_PREFIX_RANDOM)
+    if len(key) < 50:
         return False
 
     return True
