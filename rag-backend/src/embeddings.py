@@ -6,7 +6,8 @@ Handles text embeddings via OpenAI API with error handling and cost tracking.
 import logging
 import time
 from typing import List, Union
-from sentence_transformers import SentenceTransformer
+import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
 from config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -14,32 +15,55 @@ logger = logging.getLogger(__name__)
 # Token tracking for cost calculation
 _tokens_used = {"input": 0, "total": 0}
 
+# Global vectorizer instance
+_vectorizer = None
+_corpus = []
+
+
+def _initialize_vectorizer():
+    """Initialize TF-IDF vectorizer with default corpus."""
+    global _vectorizer, _corpus
+    if _vectorizer is None:
+        # Default corpus to fit the vectorizer
+        _corpus = [
+            "robotics is the technology of robots",
+            "machine learning and artificial intelligence",
+            "computer vision and image processing",
+            "natural language processing and text analysis",
+            "deep learning neural networks",
+            "data science and analytics",
+            "autonomous systems and control",
+            "human robot interaction",
+            "sensor fusion and perception",
+        ]
+        _vectorizer = TfidfVectorizer(max_features=300, ngram_range=(1, 2))
+        _vectorizer.fit(_corpus)
+        logger.info("✅ TF-IDF vectorizer initialized with corpus")
+
 
 class EmbeddingGenerator:
-    """Generate embeddings using sentence-transformers (FREE, local, no API keys)."""
+    """Generate embeddings using TF-IDF (FREE, pure Python, no GPU/PyTorch needed)."""
 
-    # Sentence-transformers is completely FREE
+    # TF-IDF is completely FREE and pure Python
     PRICE_PER_1M_INPUT_TOKENS = 0.0
-    EMBEDDING_DIMENSION = 384
+    EMBEDDING_DIMENSION = 300
 
     def __init__(self):
-        """Initialize sentence-transformers embedding model."""
+        """Initialize TF-IDF embedding generator."""
         settings = get_settings()
 
-        # Use sentence-transformers for embeddings (FREE, fast, local)
-        self.model_name = "all-MiniLM-L6-v2"
-        self.model = SentenceTransformer(self.model_name)
-        self.EMBEDDING_DIMENSION = 384
+        # Initialize global vectorizer
+        _initialize_vectorizer()
 
-        logger.info(f"✅ Using sentence-transformers for embeddings (model: {self.model_name}) - FREE, local, no API keys needed!")
+        logger.info(f"✅ Using TF-IDF embeddings (pure Python, FREE, no API keys needed!)")
 
         self.max_retries = 3
         self.retry_delay = 1
 
     def embed_text(self, text: str) -> List[float]:
-        """Generate embedding using sentence-transformers."""
+        """Generate embedding using TF-IDF."""
         try:
-            embedding = self.model.encode(text, convert_to_tensor=False)
+            embedding = _vectorizer.transform([text]).toarray()[0]
             logger.debug(f"✅ Embedded text ({len(text)} chars)")
             return embedding.tolist()
         except Exception as e:
@@ -47,14 +71,14 @@ class EmbeddingGenerator:
             raise
 
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
-        """Generate embeddings for multiple texts using sentence-transformers."""
+        """Generate embeddings for multiple texts using TF-IDF."""
         if not texts:
             raise ValueError("No texts provided")
 
         try:
-            embeddings = self.model.encode(texts, convert_to_tensor=False)
+            embeddings = _vectorizer.transform(texts).toarray()
             logger.info(f"✅ Embedded {len(texts)} texts")
-            return [emb.tolist() for emb in embeddings]
+            return embeddings.tolist()
         except Exception as e:
             logger.error(f"❌ Error generating embeddings: {e}")
             raise
