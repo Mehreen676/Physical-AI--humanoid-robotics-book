@@ -3,10 +3,10 @@ Embedding Generation Module
 Handles text embeddings via OpenAI API with error handling and cost tracking.
 """
 
-from openai import OpenAI, RateLimitError, APIConnectionError
 import logging
 import time
 from typing import List, Union
+from openai import OpenAI
 from config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -23,112 +23,62 @@ class EmbeddingGenerator:
     EMBEDDING_DIMENSION = 1536
 
     def __init__(self):
-        """Initialize OpenAI client."""
+        """Initialize OpenAI embedding client."""
         settings = get_settings()
+
+        # Use OpenAI for embeddings
         self.client = OpenAI(api_key=settings.openai_api_key)
-        self.model = settings.openai_embedding_model
+        self.model_name = settings.openai_embedding_model
+        self.EMBEDDING_DIMENSION = 1536
+
+        logger.info(f"✅ Using OpenAI for embeddings (model: {self.model_name})")
+
         self.max_retries = 3
-        self.retry_delay = 1  # seconds
-        logger.info(f"✅ Embedding generator initialized: {self.model}")
+        self.retry_delay = 1
 
-    def embed_text(
-        self,
-        text: str,
-        retry_count: int = 0,
-    ) -> List[float]:
-        """
-        Generate embedding for a single text.
-
-        Args:
-            text: Text to embed (max ~8000 tokens)
-            retry_count: Internal retry counter
-
-        Returns:
-            List of 1536 floats representing the embedding
-
-        Raises:
-            Exception: If embedding fails after retries
-        """
+    def embed_text(self, text: str) -> List[float]:
+        """Generate embedding using OpenAI."""
         try:
             response = self.client.embeddings.create(
-                model=self.model,
-                input=text,
+                model=self.model_name,
+                input=text
             )
-
             embedding = response.data[0].embedding
-            tokens_used = response.usage.prompt_tokens
 
-            # Track tokens for cost monitoring
-            _tokens_used["input"] += tokens_used
-            _tokens_used["total"] += tokens_used
+            # Track token usage
+            global _tokens_used
+            _tokens_used["input"] += response.usage.prompt_tokens
+            _tokens_used["total"] += response.usage.prompt_tokens
 
-            logger.debug(
-                f"✅ Embedded text ({len(text)} chars, {tokens_used} tokens)"
-            )
+            logger.debug(f"✅ Embedded text ({len(text)} chars) - Tokens: {response.usage.prompt_tokens}")
             return embedding
-
-        except RateLimitError as e:
-            if retry_count < self.max_retries:
-                wait_time = self.retry_delay * (2 ** retry_count)
-                logger.warning(
-                    f"⚠️  Rate limited. Retrying in {wait_time}s... "
-                    f"(attempt {retry_count + 1}/{self.max_retries})"
-                )
-                time.sleep(wait_time)
-                return self.embed_text(text, retry_count + 1)
-            else:
-                logger.error(f"❌ Rate limit exceeded after {self.max_retries} retries")
-                raise
-
-        except APIConnectionError as e:
-            logger.error(f"❌ API connection error: {e}")
-            raise
-
         except Exception as e:
             logger.error(f"❌ Error generating embedding: {e}")
             raise
 
-    def embed_texts(
-        self,
-        texts: List[str],
-    ) -> List[List[float]]:
-        """
-        Generate embeddings for multiple texts in a single API call.
-
-        Args:
-            texts: List of texts to embed (up to 2048 texts per call)
-
-        Returns:
-            List of embedding vectors (same order as input)
-
-        Raises:
-            ValueError: If texts list is empty or too large
-        """
+    def embed_texts(self, texts: List[str]) -> List[List[float]]:
+        """Generate embeddings for multiple texts using OpenAI."""
         if not texts:
             raise ValueError("No texts provided")
 
-        if len(texts) > 2048:
-            raise ValueError(f"Too many texts: {len(texts)} (max 2048)")
-
         try:
             response = self.client.embeddings.create(
-                model=self.model,
-                input=texts,
+                model=self.model_name,
+                input=texts
             )
 
-            # Extract embeddings in order
-            embeddings = [item.embedding for item in response.data]
-            tokens_used = response.usage.prompt_tokens
+            # Extract embeddings and sort by index to maintain order
+            embeddings = [None] * len(texts)
+            for item in response.data:
+                embeddings[item.index] = item.embedding
 
-            # Track tokens
-            _tokens_used["input"] += tokens_used
-            _tokens_used["total"] += tokens_used
+            # Track token usage
+            global _tokens_used
+            _tokens_used["input"] += response.usage.prompt_tokens
+            _tokens_used["total"] += response.usage.prompt_tokens
 
-            logger.info(
-                f"✅ Embedded {len(texts)} texts ({tokens_used} tokens)"
-            )
+            logger.info(f"✅ Embedded {len(texts)} texts - Tokens: {response.usage.prompt_tokens}")
             return embeddings
-
         except Exception as e:
             logger.error(f"❌ Error generating embeddings: {e}")
             raise
