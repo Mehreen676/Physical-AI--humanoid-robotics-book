@@ -1,0 +1,166 @@
+name: Backend Tests
+
+on:
+  push:
+    branches: [ main, develop, feature/** ]
+    paths:
+      - 'rag-backend/**'
+      - '.github/workflows/backend-tests.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'rag-backend/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12', '3.13']
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        cd rag-backend
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Lint with flake8
+      run: |
+        pip install flake8
+        cd rag-backend
+        # Stop the build if there are Python syntax errors or undefined names
+        flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Exit-zero treats all errors as warnings
+        flake8 src/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+      continue-on-error: true
+
+    - name: Type check with mypy
+      run: |
+        pip install mypy
+        cd rag-backend
+        mypy src/ --ignore-missing-imports --no-error-summary || true
+      continue-on-error: true
+
+    - name: Run unit tests
+      run: |
+        cd rag-backend
+        python -m pytest tests/ -v --tb=short --cov=src --cov-report=xml
+      env:
+        ENVIRONMENT: testing
+        DEBUG: 'false'
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./rag-backend/coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+      continue-on-error: true
+
+    - name: Run production readiness tests
+      run: |
+        cd rag-backend
+        python -m pytest tests/test_production_readiness.py -v --tb=short
+      continue-on-error: true
+
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Run Bandit security scan
+      run: |
+        pip install bandit
+        cd rag-backend
+        bandit -r src/ -f json -o bandit-report.json || true
+      continue-on-error: true
+
+    - name: Check for secrets
+      run: |
+        pip install detect-secrets
+        cd rag-backend
+        detect-secrets scan --baseline .secrets.baseline || true
+      continue-on-error: true
+
+    - name: Verify .env not tracked
+      run: |
+        if git ls-files | grep -q "\.env"; then
+          echo "ERROR: .env file is tracked in git!"
+          exit 1
+        fi
+        echo "✓ .env properly excluded from git"
+
+  deploy-check:
+    runs-on: ubuntu-latest
+    needs: [test]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    timeout-minutes: 10
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.13'
+
+    - name: Check Dockerfile
+      run: |
+        if [ ! -f "rag-backend/Dockerfile" ]; then
+          echo "ERROR: Dockerfile not found!"
+          exit 1
+        fi
+        echo "✓ Dockerfile exists"
+
+    - name: Check requirements.txt
+      run: |
+        if [ ! -f "rag-backend/requirements.txt" ]; then
+          echo "ERROR: requirements.txt not found!"
+          exit 1
+        fi
+        echo "✓ requirements.txt exists"
+        wc -l rag-backend/requirements.txt
+
+    - name: Check render.yaml
+      run: |
+        if [ ! -f "render.yaml" ]; then
+          echo "ERROR: render.yaml not found!"
+          exit 1
+        fi
+        echo "✓ render.yaml exists"
+
+    - name: Check runtime.txt
+      run: |
+        if [ ! -f "runtime.txt" ]; then
+          echo "ERROR: runtime.txt not found!"
+          exit 1
+        fi
+        echo "✓ runtime.txt exists"
+        cat runtime.txt
+
+    - name: Verify deployment files
+      run: |
+        echo "✓ All deployment files present"
+        echo ""
+        echo "Deployment files:"
+        ls -la render.yaml Procfile runtime.txt
