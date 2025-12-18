@@ -6,7 +6,7 @@ Handles text embeddings via OpenAI API with error handling and cost tracking.
 import logging
 import time
 from typing import List, Union
-import requests
+from sentence_transformers import SentenceTransformer
 from config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -16,80 +16,45 @@ _tokens_used = {"input": 0, "total": 0}
 
 
 class EmbeddingGenerator:
-    """Generate embeddings using OpenRouter (supports many models)."""
+    """Generate embeddings using sentence-transformers (FREE, local, no API keys)."""
 
-    # OpenRouter pricing varies by model
-    PRICE_PER_1M_INPUT_TOKENS = 0.0001  # varies by model
-    EMBEDDING_DIMENSION = 1536
+    # Sentence-transformers is completely FREE
+    PRICE_PER_1M_INPUT_TOKENS = 0.0
+    EMBEDDING_DIMENSION = 384
 
     def __init__(self):
-        """Initialize OpenRouter embedding client."""
+        """Initialize sentence-transformers embedding model."""
         settings = get_settings()
 
-        # Use OpenRouter for embeddings (text-embedding-3-small compatible)
-        self.api_key = settings.openrouter_api_key
-        self.base_url = "https://openrouter.ai/api/v1"
-        self.model_name = "openai/text-embedding-3-small"
-        self.EMBEDDING_DIMENSION = 1536
+        # Use sentence-transformers for embeddings (FREE, fast, local)
+        self.model_name = "all-MiniLM-L6-v2"
+        self.model = SentenceTransformer(self.model_name)
+        self.EMBEDDING_DIMENSION = 384
 
-        logger.info(f"✅ Using OpenRouter for embeddings (model: {self.model_name})")
+        logger.info(f"✅ Using sentence-transformers for embeddings (model: {self.model_name}) - FREE, local, no API keys needed!")
 
         self.max_retries = 3
         self.retry_delay = 1
 
     def embed_text(self, text: str) -> List[float]:
-        """Generate embedding using OpenRouter."""
+        """Generate embedding using sentence-transformers."""
         try:
-            response = requests.post(
-                f"{self.base_url}/embeddings",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": self.model_name,
-                    "input": text
-                },
-                timeout=30
-            )
-            response.raise_for_status()
-            result = response.json()
-            embedding = result['data'][0]['embedding']
-
+            embedding = self.model.encode(text, convert_to_tensor=False)
             logger.debug(f"✅ Embedded text ({len(text)} chars)")
-            return embedding
+            return embedding.tolist()
         except Exception as e:
             logger.error(f"❌ Error generating embedding: {e}")
             raise
 
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
-        """Generate embeddings for multiple texts using OpenRouter."""
+        """Generate embeddings for multiple texts using sentence-transformers."""
         if not texts:
             raise ValueError("No texts provided")
 
         try:
-            response = requests.post(
-                f"{self.base_url}/embeddings",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": self.model_name,
-                    "input": texts
-                },
-                timeout=30
-            )
-            response.raise_for_status()
-            result = response.json()
-
-            # Sort by index to maintain order
-            embeddings = [None] * len(texts)
-            for item in result['data']:
-                embeddings[item['index']] = item['embedding']
-
+            embeddings = self.model.encode(texts, convert_to_tensor=False)
             logger.info(f"✅ Embedded {len(texts)} texts")
-            return embeddings
+            return [emb.tolist() for emb in embeddings]
         except Exception as e:
             logger.error(f"❌ Error generating embeddings: {e}")
             raise
