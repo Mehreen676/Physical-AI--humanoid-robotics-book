@@ -6,7 +6,7 @@ Handles text embeddings via OpenAI API with error handling and cost tracking.
 import logging
 import time
 from typing import List, Union
-from openai import OpenAI
+import google.generativeai as genai
 from config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -16,68 +16,58 @@ _tokens_used = {"input": 0, "total": 0}
 
 
 class EmbeddingGenerator:
-    """Generate embeddings using OpenAI API."""
+    """Generate embeddings using Google Gemini API (FREE)."""
 
-    # OpenAI pricing (as of 2024)
-    PRICE_PER_1M_INPUT_TOKENS = 0.02  # text-embedding-3-small
-    EMBEDDING_DIMENSION = 1536
+    # Gemini embeddings are free
+    PRICE_PER_1M_INPUT_TOKENS = 0.0
+    EMBEDDING_DIMENSION = 768
 
     def __init__(self):
-        """Initialize OpenAI embedding client."""
+        """Initialize Google Gemini embedding client."""
         settings = get_settings()
 
-        # Use OpenAI for embeddings
-        self.client = OpenAI(api_key=settings.openai_api_key)
-        self.model_name = settings.openai_embedding_model
-        self.EMBEDDING_DIMENSION = 1536
+        # Use Gemini for embeddings (FREE tier available)
+        genai.configure(api_key=settings.gemini_api_key)
+        self.model_name = "models/embedding-001"
+        self.EMBEDDING_DIMENSION = 768
 
-        logger.info(f"✅ Using OpenAI for embeddings (model: {self.model_name})")
+        logger.info(f"✅ Using Google Gemini for embeddings (model: {self.model_name})")
 
         self.max_retries = 3
         self.retry_delay = 1
 
     def embed_text(self, text: str) -> List[float]:
-        """Generate embedding using OpenAI."""
+        """Generate embedding using Google Gemini."""
         try:
-            response = self.client.embeddings.create(
+            result = genai.embed_content(
                 model=self.model_name,
-                input=text
+                content=text,
+                task_type="RETRIEVAL_DOCUMENT"
             )
-            embedding = response.data[0].embedding
+            embedding = result['embedding']
 
-            # Track token usage
-            global _tokens_used
-            _tokens_used["input"] += response.usage.prompt_tokens
-            _tokens_used["total"] += response.usage.prompt_tokens
-
-            logger.debug(f"✅ Embedded text ({len(text)} chars) - Tokens: {response.usage.prompt_tokens}")
+            logger.debug(f"✅ Embedded text ({len(text)} chars)")
             return embedding
         except Exception as e:
             logger.error(f"❌ Error generating embedding: {e}")
             raise
 
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
-        """Generate embeddings for multiple texts using OpenAI."""
+        """Generate embeddings for multiple texts using Google Gemini."""
         if not texts:
             raise ValueError("No texts provided")
 
         try:
-            response = self.client.embeddings.create(
-                model=self.model_name,
-                input=texts
-            )
+            embeddings = []
+            for text in texts:
+                result = genai.embed_content(
+                    model=self.model_name,
+                    content=text,
+                    task_type="RETRIEVAL_DOCUMENT"
+                )
+                embeddings.append(result['embedding'])
 
-            # Extract embeddings and sort by index to maintain order
-            embeddings = [None] * len(texts)
-            for item in response.data:
-                embeddings[item.index] = item.embedding
-
-            # Track token usage
-            global _tokens_used
-            _tokens_used["input"] += response.usage.prompt_tokens
-            _tokens_used["total"] += response.usage.prompt_tokens
-
-            logger.info(f"✅ Embedded {len(texts)} texts - Tokens: {response.usage.prompt_tokens}")
+            logger.info(f"✅ Embedded {len(texts)} texts")
             return embeddings
         except Exception as e:
             logger.error(f"❌ Error generating embeddings: {e}")
