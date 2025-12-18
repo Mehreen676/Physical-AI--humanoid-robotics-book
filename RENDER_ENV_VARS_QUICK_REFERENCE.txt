@@ -1,0 +1,124 @@
+═══════════════════════════════════════════════════════════════════════════════
+  RENDER.COM DEPLOYMENT - ENVIRONMENT VARIABLES QUICK REFERENCE
+═══════════════════════════════════════════════════════════════════════════════
+
+COPY AND PASTE INTO RENDER DASHBOARD → SETTINGS → ENVIRONMENT
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 1: DEPLOYMENT & DEBUG (Copy as-is)
+═══════════════════════════════════════════════════════════════════════════════
+
+ENVIRONMENT=production
+DEBUG=false
+LOG_LEVEL=INFO
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 2: QDRANT CONFIGURATION (Copy as-is, except API key)
+═══════════════════════════════════════════════════════════════════════════════
+
+QDRANT_COLLECTION_NAME=aibook_chunk
+
+QDRANT_URL=<PASTE FROM YOUR .env>
+QDRANT_API_KEY=<PASTE FROM YOUR .env>
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 3: DATABASE (Copy as-is)
+═══════════════════════════════════════════════════════════════════════════════
+
+DATABASE_URL=<PASTE FROM YOUR .env>
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 4: LLM CONFIGURATION
+═══════════════════════════════════════════════════════════════════════════════
+
+OPENAI_API_KEY=<PASTE NEW KEY FROM https://platform.openai.com/api-keys>
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+OPENAI_TEMPERATURE=0.3
+OPENAI_MAX_TOKENS=500
+
+GROQ_API_KEY=<PASTE NEW KEY FROM https://console.groq.com/keys>
+GROQ_LLM_MODEL=llama-3.1-70b-versatile
+
+COHERE_API_KEY=<PASTE NEW KEY FROM https://dashboard.cohere.com/api-keys>
+COHERE_LLM_MODEL=command
+
+GEMINI_API_KEY=<PASTE NEW KEY FROM https://aistudio.google.com/app/apikey>
+
+HUGGINGFACE_API_TOKEN=<PASTE NEW TOKEN FROM https://huggingface.co/settings/tokens>
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 5: RATE LIMITING & SESSION (Copy as-is)
+═══════════════════════════════════════════════════════════════════════════════
+
+RATE_LIMIT_QUERIES_PER_MINUTE=10
+RATE_LIMIT_QUERIES_PER_DAY=1000
+SESSION_TIMEOUT_HOURS=24
+MAX_SELECTED_TEXT_TOKENS=2000
+MAX_SELECTED_TEXT_CHARACTERS=10000
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 6: SECURITY (Generate new SECRET_KEY)
+═══════════════════════════════════════════════════════════════════════════════
+
+SECRET_KEY=<GENERATE NEW: python -c "import secrets; print(secrets.token_urlsafe(32))">
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 7: CORS (Copy as-is)
+═══════════════════════════════════════════════════════════════════════════════
+
+ALLOWED_ORIGINS_STR=https://mehreen676.github.io,https://rag-chatbot-backend.onrender.com,http://localhost:3000,http://localhost:8000
+
+═══════════════════════════════════════════════════════════════════════════════
+SERVICE CONFIGURATION
+═══════════════════════════════════════════════════════════════════════════════
+
+Name:            rag-chatbot-backend
+Runtime:         Python 3
+Root Directory:  (leave empty)
+
+Build Command:   cd rag-backend && pip install -r requirements.txt
+Start Command:   cd rag-backend && uvicorn src.main:app --host 0.0.0.0 --port $PORT
+
+Instance Type:   Free
+Auto-deploy:     ON
+
+═══════════════════════════════════════════════════════════════════════════════
+STEPS TO DEPLOY
+═══════════════════════════════════════════════════════════════════════════════
+
+1. Go to https://render.com → Dashboard
+2. Click "New +" → "Web Service"
+3. Select repository: Physical-AI--humanoid-robotics-book
+4. Select branch: feature/2-rag-chatbot-integration
+5. Enter service configuration above
+6. Click "Advanced" and add all environment variables from sections 1-7
+7. Click "Create Web Service"
+8. Wait 3-5 minutes for deployment
+9. Test at: https://rag-chatbot-backend.onrender.com/health
+
+═══════════════════════════════════════════════════════════════════════════════
+VERIFICATION TESTS
+═══════════════════════════════════════════════════════════════════════════════
+
+Health Check:
+curl https://rag-chatbot-backend.onrender.com/health
+
+API Docs (Open in browser):
+https://rag-chatbot-backend.onrender.com/docs
+
+Test Query:
+curl -X POST https://rag-chatbot-backend.onrender.com/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What is ROS 2?", "mode": "full_book"}'
+
+═══════════════════════════════════════════════════════════════════════════════
+IMPORTANT
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ Do NOT use quotes around environment variable values
+✅ Do NOT commit your .env file to git
+✅ Only store sensitive values in Render (DATABASE_URL, API keys, etc.)
+✅ Free tier spins down after 15 min inactivity (upgrade for always-on)
+✅ All configuration files already pushed to GitHub
+
+═══════════════════════════════════════════════════════════════════════════════
