@@ -6,7 +6,7 @@ Handles text embeddings via OpenAI API with error handling and cost tracking.
 import logging
 import time
 from typing import List, Union
-import google.generativeai as genai
+import requests
 from config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -16,35 +16,45 @@ _tokens_used = {"input": 0, "total": 0}
 
 
 class EmbeddingGenerator:
-    """Generate embeddings using Google Gemini API (FREE)."""
+    """Generate embeddings using OpenRouter (supports many models)."""
 
-    # Gemini embeddings are free
-    PRICE_PER_1M_INPUT_TOKENS = 0.0
-    EMBEDDING_DIMENSION = 768
+    # OpenRouter pricing varies by model
+    PRICE_PER_1M_INPUT_TOKENS = 0.0001  # varies by model
+    EMBEDDING_DIMENSION = 1536
 
     def __init__(self):
-        """Initialize Google Gemini embedding client."""
+        """Initialize OpenRouter embedding client."""
         settings = get_settings()
 
-        # Use Gemini for embeddings (FREE tier available)
-        genai.configure(api_key=settings.gemini_api_key)
-        self.model_name = "models/embedding-001"
-        self.EMBEDDING_DIMENSION = 768
+        # Use OpenRouter for embeddings (text-embedding-3-small compatible)
+        self.api_key = settings.openrouter_api_key
+        self.base_url = "https://openrouter.ai/api/v1"
+        self.model_name = "openai/text-embedding-3-small"
+        self.EMBEDDING_DIMENSION = 1536
 
-        logger.info(f"✅ Using Google Gemini for embeddings (model: {self.model_name})")
+        logger.info(f"✅ Using OpenRouter for embeddings (model: {self.model_name})")
 
         self.max_retries = 3
         self.retry_delay = 1
 
     def embed_text(self, text: str) -> List[float]:
-        """Generate embedding using Google Gemini."""
+        """Generate embedding using OpenRouter."""
         try:
-            result = genai.embed_content(
-                model=self.model_name,
-                content=text,
-                task_type="RETRIEVAL_DOCUMENT"
+            response = requests.post(
+                f"{self.base_url}/embeddings",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": self.model_name,
+                    "input": text
+                },
+                timeout=30
             )
-            embedding = result['embedding']
+            response.raise_for_status()
+            result = response.json()
+            embedding = result['data'][0]['embedding']
 
             logger.debug(f"✅ Embedded text ({len(text)} chars)")
             return embedding
@@ -53,19 +63,30 @@ class EmbeddingGenerator:
             raise
 
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
-        """Generate embeddings for multiple texts using Google Gemini."""
+        """Generate embeddings for multiple texts using OpenRouter."""
         if not texts:
             raise ValueError("No texts provided")
 
         try:
-            embeddings = []
-            for text in texts:
-                result = genai.embed_content(
-                    model=self.model_name,
-                    content=text,
-                    task_type="RETRIEVAL_DOCUMENT"
-                )
-                embeddings.append(result['embedding'])
+            response = requests.post(
+                f"{self.base_url}/embeddings",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": self.model_name,
+                    "input": texts
+                },
+                timeout=30
+            )
+            response.raise_for_status()
+            result = response.json()
+
+            # Sort by index to maintain order
+            embeddings = [None] * len(texts)
+            for item in result['data']:
+                embeddings[item['index']] = item['embedding']
 
             logger.info(f"✅ Embedded {len(texts)} texts")
             return embeddings
