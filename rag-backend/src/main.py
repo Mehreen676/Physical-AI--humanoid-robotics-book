@@ -23,11 +23,11 @@ from slowapi.errors import RateLimitExceeded
 # Add src directory to path for imports
 sys.path.insert(0, os.path.dirname(__file__))
 
-from config import get_settings
-from ingest_service import get_ingest_service
-from retrieval_service import get_retriever
-from generation_service import get_generation_agent
-from database import (
+from src.config import get_settings
+from src.ingest_service import get_ingest_service
+from src.retrieval_service import get_retriever
+from src.generation_service import get_generation_agent
+from src.database import (
     add_session, add_message, get_session, get_session_history, DatabaseSession,
     add_user, get_user_by_email, get_user_by_id, verify_password,
     get_user_analytics, add_query_metric, QueryMetrics,
@@ -37,16 +37,16 @@ from database import (
     # Phase 6 models
     TOTPSecret, RefreshToken, APIKey, Permission, Role, RolePermission, UserRole
 )
-from validation import validate_response_in_context
-from embeddings import get_embedding_generator
+from src.validation import validate_response_in_context
+from src.embeddings import get_embedding_generator
 import time
 import uuid
 # Phase 6 - Enterprise Authentication
-from mfa import generate_totp_secret, generate_qr_code, verify_totp_code, generate_backup_codes, hash_backup_code, hash_backup_codes, verify_backup_code
-from tokens import generate_refresh_token, hash_token, extract_token_prefix, extract_device_id_from_user_agent, parse_user_agent, calculate_token_expiry, is_token_expired, can_rotate_token
-from api_keys import generate_api_key, hash_api_key, validate_api_key_format, extract_key_prefix, validate_scopes, has_scope, check_scope_access, calculate_key_expiry, is_api_key_expired, is_api_key_valid
-from rbac import has_permission, check_permissions, cache_user_permissions, get_cached_permissions, clear_user_cache, validate_permission_format, DEFAULT_ROLES, DEFAULT_PERMISSIONS
-from phase6_models import (
+from src.mfa import generate_totp_secret, generate_qr_code, verify_totp_code, generate_backup_codes, hash_backup_code, hash_backup_codes, verify_backup_code
+from src.tokens import generate_refresh_token, hash_token, extract_token_prefix, extract_device_id_from_user_agent, parse_user_agent, calculate_token_expiry, is_token_expired, can_rotate_token
+from src.api_keys import generate_api_key, hash_api_key, validate_api_key_format, extract_key_prefix, validate_scopes, has_scope, check_scope_access, calculate_key_expiry, is_api_key_expired, is_api_key_valid
+from src.rbac import has_permission, check_permissions, cache_user_permissions, get_cached_permissions, clear_user_cache, validate_permission_format, DEFAULT_ROLES, DEFAULT_PERMISSIONS
+from src.phase6_models import (
     MFASetupResponse, MFAVerifyRequest, MFAVerifyResponse, MFADisableRequest,
     MFADisableResponse, MFALoginRequest, MFALoginResponse,
     RefreshTokenRequest, RefreshTokenResponse, DeviceInfo, DeviceListResponse,

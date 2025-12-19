@@ -8,7 +8,7 @@ import time
 from typing import List, Union
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
-from config import get_settings
+from src.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -64,8 +64,18 @@ class EmbeddingGenerator:
         """Generate embedding using TF-IDF."""
         try:
             embedding = _vectorizer.transform([text]).toarray()[0]
-            logger.debug(f"✅ Embedded text ({len(text)} chars)")
-            return embedding.tolist()
+
+            # Pad or truncate to ensure consistent dimension size (300)
+            embedding_list = embedding.tolist()
+            if len(embedding_list) < 300:
+                # Pad with zeros to reach 300 dimensions
+                embedding_list.extend([0.0] * (300 - len(embedding_list)))
+            elif len(embedding_list) > 300:
+                # Truncate to 300 dimensions
+                embedding_list = embedding_list[:300]
+
+            logger.debug(f"✅ Embedded text ({len(text)} chars) -> {len(embedding_list)} dimensions")
+            return embedding_list
         except Exception as e:
             logger.error(f"❌ Error generating embedding: {e}")
             raise
@@ -78,7 +88,20 @@ class EmbeddingGenerator:
         try:
             embeddings = _vectorizer.transform(texts).toarray()
             logger.info(f"✅ Embedded {len(texts)} texts")
-            return embeddings.tolist()
+
+            # Pad or truncate each embedding to ensure consistent dimension size (300)
+            result_embeddings = []
+            for embedding in embeddings:
+                embedding_list = embedding.tolist()
+                if len(embedding_list) < 300:
+                    # Pad with zeros to reach 300 dimensions
+                    embedding_list.extend([0.0] * (300 - len(embedding_list)))
+                elif len(embedding_list) > 300:
+                    # Truncate to 300 dimensions
+                    embedding_list = embedding_list[:300]
+                result_embeddings.append(embedding_list)
+
+            return result_embeddings
         except Exception as e:
             logger.error(f"❌ Error generating embeddings: {e}")
             raise

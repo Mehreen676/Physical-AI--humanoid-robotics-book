@@ -6,8 +6,8 @@ Retrieves relevant chunks from vector store based on semantic search.
 import logging
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
-from embeddings import get_embedding_generator
-from vector_store import get_vector_store
+from src.embeddings import get_embedding_generator
+from src.vector_store import get_vector_store
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +102,7 @@ class RetrieverAgent:
                 f"🔎 Searching Qdrant for '{query}' with filters: {filters}"
             )
             search_results = self.vector_store.query_vectors(
-                query_vector=query_embedding,
+                query_embedding=query_embedding,
                 k=k * 2,  # Get more than needed for filtering
                 filters=filters,
             )
@@ -230,7 +230,7 @@ class RetrieverAgent:
             }
 
             search_results = self.vector_store.query_vectors(
-                query_vector=query_embedding,
+                query_embedding=query_embedding,
                 k=limit,
                 filters=filters,
             )

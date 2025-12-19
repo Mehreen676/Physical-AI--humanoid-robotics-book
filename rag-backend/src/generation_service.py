@@ -6,7 +6,7 @@ Generates responses using LLM with RAG context.
 import logging
 from typing import Dict, Optional, Tuple
 from dataclasses import dataclass
-from config import get_settings
+from src.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -158,7 +158,16 @@ class GenerationAgent:
 
         try:
             settings = get_settings()
+
+            # Check if OpenAI API key is available
+            if not settings.openai_api_key or settings.openai_api_key == "sk-proj-default":
+                logger.warning("⚠️ OpenAI API key not configured, generation service will return context-based responses only")
+                self.client = None
+                return
+
+            # Use OpenAI API with the key from environment variables
             self.client = OpenAI(api_key=settings.openai_api_key)
+            logger.info("✅ OpenAI client initialized for generation service")
         except Exception as e:
             logger.error(f"❌ Failed to initialize OpenAI client: {e}")
             self.client = None
@@ -190,7 +199,16 @@ class GenerationAgent:
             Exception: If generation fails
         """
         if not self.client:
-            raise RuntimeError("OpenAI client not initialized")
+            # Return a response based on the context without calling OpenAI
+            logger.warning("⚠️ OpenAI API key not configured, generating response from context only")
+            content = f"Based on the provided context: {context}\n\nQuestion: {query}\n\n[Note: OpenAI API key not configured - this is a context-based response without LLM generation]"
+            return GeneratedResponse(
+                content=content,
+                model="context-only",
+                input_tokens=0,
+                output_tokens=0,
+                total_tokens=0,
+            )
 
         try:
             # Select prompt template based on mode
@@ -277,7 +295,15 @@ class GenerationAgent:
 
         except Exception as e:
             logger.error(f"❌ Generation failed: {e}", exc_info=True)
-            raise
+            # Return a fallback response when API fails
+            content = f"Based on the provided context: {context}\n\nQuestion: {query}\n\n[Note: LLM generation failed - this is a context-based response]"
+            return GeneratedResponse(
+                content=content,
+                model="fallback",
+                input_tokens=0,
+                output_tokens=0,
+                total_tokens=0,
+            )
 
     def get_cost_estimate(self) -> Dict:
         """

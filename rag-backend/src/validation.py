@@ -5,7 +5,7 @@ Ensures that generated responses are grounded in the selected text.
 
 import logging
 import numpy as np
-from embeddings import get_embedding_generator
+from src.embeddings import get_embedding_generator
 
 logger = logging.getLogger(__name__)
 

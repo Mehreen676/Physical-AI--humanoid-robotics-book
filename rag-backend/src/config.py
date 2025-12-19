@@ -23,18 +23,25 @@ class Settings(BaseSettings):
     port: int = 8000
     environment: str = "development"
 
-    # OpenAI Configuration
-    openai_api_key: str
+    # OpenAI Configuration (optional - using for generation)
+    openai_api_key: Optional[str] = "sk-proj-default"
     openai_embedding_model: str = "text-embedding-3-small"
     openai_llm_model: str = "gpt-4o"
     openai_llm_fallback_model: str = "gpt-3.5-turbo"
     openai_temperature: float = 0.3
     openai_max_tokens: int = 500
 
+    # Cohere Configuration (not currently used - using TF-IDF instead)
+    cohere_api_key: Optional[str] = None
+
+    # OpenRouter Configuration
+    openrouter_api_key: str = ""
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+
     # Qdrant Configuration
     qdrant_url: str
     qdrant_api_key: str
-    qdrant_collection_name: str = "book_v1.0_chapters"
+    qdrant_collection_name: str = "aibook_chunk"
 
     # Neon Postgres Configuration
     database_url: str
@@ -104,10 +111,9 @@ class Settings(BaseSettings):
     def _validate_required_keys(self):
         """Validate that all required keys are present."""
         required_keys = [
-            "openai_api_key",
             "qdrant_url",
             "qdrant_api_key",
-            "database_url",
+            "database_url"
         ]
 
         missing_keys = [

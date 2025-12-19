@@ -7,12 +7,12 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
 from typing import List, Dict, Optional, Tuple
 import logging
-from config import get_settings
+from src.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-# Vector dimensions for OpenAI text-embedding-3-small
-EMBEDDING_DIMENSION = 1536
+# Vector dimensions for TF-IDF embeddings
+EMBEDDING_DIMENSION = 300
 
 
 class QdrantVectorStore:
@@ -21,11 +21,17 @@ class QdrantVectorStore:
     def __init__(self):
         """Initialize Qdrant client with cloud credentials."""
         settings = get_settings()
-        self.client = QdrantClient(
-            url=settings.qdrant_url,
-            api_key=settings.qdrant_api_key,
-            timeout=30,
-        )
+
+        try:
+            self.client = QdrantClient(
+                url=settings.qdrant_url,
+                api_key=settings.qdrant_api_key,
+                timeout=30,
+            )
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize Qdrant client: {e}")
+            raise
+
         self.collection_name = settings.qdrant_collection_name
         logger.info(f"✅ Qdrant client initialized: {settings.qdrant_url}")
 
@@ -80,7 +86,7 @@ class QdrantVectorStore:
 
         Args:
             vector_id: Unique identifier for the vector
-            embedding: 1536-dim vector from OpenAI
+            embedding: 300-dim vector from TF-IDF
             metadata: Document metadata (chapter, section, chunk_id, etc.)
             collection_name: Collection name (uses default if None)
 
@@ -139,25 +145,41 @@ class QdrantVectorStore:
             logger.error(f"❌ Error storing vectors in batch: {e}")
             raise
 
-    def query_vectors(
-        self,
-        query_embedding: List[float],
-        k: int = 5,
-        filters: Optional[Dict] = None,
-        collection_name: Optional[str] = None,
-    ) -> List[Dict]:
+    def query_vectors(self, *args, **kwargs) -> List[Dict]:
         """
         Query for top-k similar vectors (semantic search).
+        Supports both 'query_embedding' and 'query_vector' parameter names for compatibility.
 
         Args:
-            query_embedding: Query vector (1536-dim)
-            k: Number of results to return
+            query_embedding or query_vector: Query vector (300-dim)
+            k: Number of results to return (default 5)
             filters: Optional metadata filters (Qdrant filter format)
             collection_name: Collection name (uses default if None)
 
         Returns:
             List of dicts with: {id, score, chapter, section, content, ...}
         """
+        # Handle both parameter names for compatibility
+        query_embedding = None
+        k = 5
+        filters = None
+        collection_name = None
+
+        # Handle positional arguments
+        if len(args) > 0:
+            query_embedding = args[0]
+        if len(args) > 1:
+            k = args[1]
+        if len(args) > 2:
+            filters = args[2]
+        if len(args) > 3:
+            collection_name = args[3]
+
+        # Override with keyword arguments
+        query_embedding = kwargs.get('query_embedding', kwargs.get('query_vector', query_embedding))
+        k = kwargs.get('k', k)
+        filters = kwargs.get('filters', filters)
+        collection_name = kwargs.get('collection_name', collection_name)
         name = collection_name or self.collection_name
 
         try:

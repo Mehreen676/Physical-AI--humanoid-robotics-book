@@ -21,7 +21,7 @@ from sqlalchemy.dialects.postgresql import UUID, JSON
 import uuid
 from datetime import datetime, timedelta
 import logging
-from config import get_settings
+from src.config import get_settings
 import bcrypt
 
 logger = logging.getLogger(__name__)

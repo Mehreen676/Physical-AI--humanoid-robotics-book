@@ -14,6 +14,7 @@ The RAG Chatbot transforms static technical textbooks into interactive learning 
 
 ✅ **Semantic Search** - Find relevant content across entire textbook
 ✅ **Smart Generation** - Context-aware answers with source citations
+✅ **Cost-Effective** - FREE TF-IDF embeddings (no API costs!)
 ✅ **Multi-Mode** - Full-book and selected-text query modes
 ✅ **Chat History** - Persistent conversation tracking
 ✅ **Enterprise Security** - MFA, API keys, RBAC, rate limiting

@@ -6,10 +6,10 @@ Orchestrates document ingestion: chunking, embedding, and storage.
 import logging
 import uuid
 from typing import Dict, List, Tuple
-from chunking import DocumentChunker
-from embeddings import get_embedding_generator
-from vector_store import get_vector_store
-from database import add_document, get_db
+from src.chunking import DocumentChunker
+from src.embeddings import get_embedding_generator
+from src.vector_store import get_vector_store
+from src.database import add_document, get_db
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ class IngestionService:
             existing_hashes = set()
 
             try:
-                from database import Document
+                from src.database import Document
 
                 existing_docs = db_session.query(Document).filter(
                     Document.book_version == book_version
