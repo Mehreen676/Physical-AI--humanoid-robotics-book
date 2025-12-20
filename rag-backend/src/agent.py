@@ -15,18 +15,16 @@ from src.generation_service import GenerationAgent, GeneratedResponse
 from src.database import add_session, add_message, DatabaseSession
 from src.config import get_settings
 
+# Initialize logger first (before it's used in imports)
+logger = logging.getLogger(__name__)
+
 try:
     from openai import OpenAI
-    from openai.types.chat import ChatCompletionToolParam
     OPENAI_AVAILABLE = True
 except ImportError as e:
     logger.warning(f"OpenAI SDK not installed: {e}")
     OPENAI_AVAILABLE = False
-    # Define stub for type hints - actual usage will fail with clear error
     OpenAI = None
-    ChatCompletionToolParam = None
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -310,7 +308,7 @@ class OpenAIRAGAgent:
             logger.error(f"❌ Failed to initialize OpenAI Agent: {e}")
             raise
 
-    def _get_tools(self) -> List[ChatCompletionToolParam]:
+    def _get_tools(self) -> List[Dict[str, Any]]:
         """
         Define tools available to the OpenAI agent.
 
@@ -498,34 +496,38 @@ class OpenAIRAGAgent:
 
                 # Check if agent wants to use tools
                 if response.stop_reason == "tool_calls":
-                    tool_calls = response.content or []
+                    # Get the message from the response
+                    message = response.choices[0].message
 
                     # Add assistant response to message history
-                    messages.append({"role": "assistant", "content": response.message.content})
+                    if message.content:
+                        messages.append({"role": "assistant", "content": message.content})
 
                     # Process each tool call
-                    for tool_call in response.message.tool_calls:
-                        tool_name = tool_call.function.name
-                        tool_input = json.loads(tool_call.function.arguments)
+                    if hasattr(message, "tool_calls") and message.tool_calls:
+                        for tool_call in message.tool_calls:
+                            tool_name = tool_call.function.name
+                            tool_input = json.loads(tool_call.function.arguments)
 
-                        logger.info(f"Agent calling tool: {tool_name}")
+                            logger.info(f"Agent calling tool: {tool_name}")
 
-                        # Execute tool
-                        tool_result = self._execute_tool(tool_name, tool_input)
+                            # Execute tool
+                            tool_result = self._execute_tool(tool_name, tool_input)
 
-                        # Add tool result to messages
-                        messages.append(
-                            {
-                                "role": "tool",
-                                "tool_call_id": tool_call.id,
-                                "name": tool_name,
-                                "content": tool_result,
-                            }
-                        )
+                            # Add tool result to messages
+                            messages.append(
+                                {
+                                    "role": "tool",
+                                    "tool_call_id": tool_call.id,
+                                    "name": tool_name,
+                                    "content": tool_result,
+                                }
+                            )
 
                 elif response.stop_reason == "end_turn":
                     # Agent finished, extract final answer
-                    final_answer = response.message.content or "No response generated"
+                    message = response.choices[0].message
+                    final_answer = message.content or "No response generated"
                     logger.info(f"✅ Agent completed in {iteration} iterations")
 
                     # For now, assume agent retrieved chunks in previous iteration
@@ -534,14 +536,23 @@ class OpenAIRAGAgent:
 
                     total_latency = time.time() - pipeline_start
 
+                    # Extract token usage if available
+                    input_tokens = 0
+                    output_tokens = 0
+                    total_tokens = 0
+                    if response.usage:
+                        input_tokens = response.usage.prompt_tokens or 0
+                        output_tokens = response.usage.completion_tokens or 0
+                        total_tokens = response.usage.total_tokens or 0
+
                     return RAGResponse(
                         query=query,
                         answer=final_answer,
                         retrieved_chunks=retrieved_chunks,
                         model=self.model,
-                        input_tokens=response.usage.prompt_tokens if response.usage else 0,
-                        output_tokens=response.usage.completion_tokens if response.usage else 0,
-                        total_tokens=response.usage.total_tokens if response.usage else 0,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        total_tokens=total_tokens,
                         retrieval_latency_ms=0,
                         generation_latency_ms=0,
                         total_latency_ms=(total_latency * 1000),
