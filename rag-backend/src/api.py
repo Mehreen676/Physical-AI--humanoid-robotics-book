@@ -43,16 +43,21 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Import src modules IMMEDIATELY after path setup and logging (before lifespan)
+# This MUST be done at module level, not in async contexts
 try:
     from src.config import get_settings
-    logger.info("✅ Successfully imported src.config")
+    from src.vector_store import get_vector_store
+    logger.info("✅ Successfully imported src.config and src.vector_store")
 except ImportError as e:
-    logger.error(f"❌ Failed to import src.config: {e}")
-    # Provide fallback
+    logger.error(f"❌ Failed to import src modules: {e}")
+    # Provide fallbacks
     def get_settings():
         class Settings:
             debug = False
+            allowed_origins = ["http://localhost:3000", "http://localhost:8000"]
         return Settings()
+    def get_vector_store():
+        return None
 
 
 # ============================================================================
@@ -293,9 +298,7 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("🚀 RAG Chatbot Backend starting...")
     try:
-        # Import services - get_settings already imported at module level
-        from src.vector_store import get_vector_store
-
+        # Services already imported at module level - just use them
         settings = get_settings()
         vector_store = get_vector_store()
         logger.info("✅ Services initialized successfully")
@@ -321,7 +324,6 @@ app = FastAPI(
 
 # Configure CORS
 try:
-    from src.config import get_settings
     settings = get_settings()
     app.add_middleware(
         CORSMiddleware,
