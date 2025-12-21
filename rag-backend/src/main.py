@@ -3,10 +3,6 @@ RAG Chatbot Backend - FastAPI Application
 Integrated Retrieval-Augmented Generation chatbot for interactive learning.
 """
 
-from fastapi import FastAPI, HTTPException, Depends, Header, Query
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
-from pydantic import BaseModel, Field, EmailStr
 import logging
 from datetime import datetime, timedelta
 import os
@@ -16,12 +12,33 @@ import json
 from typing import Optional
 import httpx
 import secrets
+
+# ============================================================================
+# Python Path Configuration (for container deployments)
+# ============================================================================
+# Aggressively add paths to handle various deployment contexts
+_current_file = os.path.abspath(__file__)
+_current_dir = os.path.dirname(_current_file)  # /app/src or ./src
+_project_root = os.path.dirname(_current_dir)  # /app or .
+
+# Add paths to sys.path (only if not already present)
+_paths_to_add = [
+    _project_root,                          # Project root (where src/ is)
+    os.getcwd(),                            # Current working directory
+    os.path.dirname(os.getcwd()),           # Parent of cwd (for nested structures)
+]
+
+for _path in _paths_to_add:
+    if _path and _path not in sys.path:
+        sys.path.insert(0, _path)
+
+from fastapi import FastAPI, HTTPException, Depends, Header, Query
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, RedirectResponse
+from pydantic import BaseModel, Field, EmailStr
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-
-# Add src directory to path for imports
-sys.path.insert(0, os.path.dirname(__file__))
 
 from src.config import get_settings
 from src.ingest_service import get_ingest_service
