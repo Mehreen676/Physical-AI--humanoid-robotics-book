@@ -35,12 +35,24 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, EmailStr
 
-# Configure logging
+# Configure logging (before any other logger calls)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+# Import src modules IMMEDIATELY after path setup and logging (before lifespan)
+try:
+    from src.config import get_settings
+    logger.info("✅ Successfully imported src.config")
+except ImportError as e:
+    logger.error(f"❌ Failed to import src.config: {e}")
+    # Provide fallback
+    def get_settings():
+        class Settings:
+            debug = False
+        return Settings()
 
 
 # ============================================================================
@@ -281,10 +293,8 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("🚀 RAG Chatbot Backend starting...")
     try:
-        from src.config import get_settings
+        # Import services - get_settings already imported at module level
         from src.vector_store import get_vector_store
-        from src.retrieval_service import RetrieverAgent
-        from src.generation_service import GeneratorAgent
 
         settings = get_settings()
         vector_store = get_vector_store()
