@@ -90,12 +90,14 @@ class RetrieverAgent:
             query_embedding = self.embeddings.embed_text(query)
             query_tokens = self.embeddings.estimate_tokens(query)
 
-            # Step 2: Build filter for Qdrant
-            filters = {
-                "book_version": book_version,
-            }
-            if chapter_filter:
-                filters["chapter"] = chapter_filter
+            # Step 2: Build filter for Qdrant (skip for now to avoid index issues)
+            filters = None  # Temporarily disable filters to avoid index requirement
+            # Original filter code:
+            # filters = {
+            #     "book_version": book_version,
+            # }
+            # if chapter_filter:
+            #     filters["chapter"] = chapter_filter
 
             # Step 3: Search in Qdrant
             logger.info(
@@ -111,24 +113,22 @@ class RetrieverAgent:
             retrieved_chunks = []
             for result in search_results:
                 # Check minimum similarity threshold
-                if result["similarity_score"] < self.min_similarity:
+                if result["score"] < self.min_similarity:
                     logger.debug(
-                        f"⏭️  Skipping: similarity {result['similarity_score']:.4f} < {self.min_similarity}"
+                        f"⏭️  Skipping: similarity {result['score']:.4f} < {self.min_similarity}"
                     )
                     continue
 
                 # Create RetrievedChunk object
                 chunk = RetrievedChunk(
-                    doc_id=result.get("metadata", {}).get("doc_id", "unknown"),
-                    chapter=result.get("metadata", {}).get("chapter", "Unknown"),
-                    section=result.get("metadata", {}).get("section", "Unknown"),
-                    subsection=result.get("metadata", {}).get("subsection"),
+                    doc_id=result.get("doc_id", "unknown"),
+                    chapter=result.get("chapter", "Unknown"),
+                    section=result.get("section", "Unknown"),
+                    subsection=result.get("subsection"),
                     content=result.get("content", ""),
-                    similarity_score=result["similarity_score"],
-                    chunk_index=result.get("metadata", {}).get("chunk_index", 0),
-                    book_version=result.get("metadata", {}).get(
-                        "book_version", "v1.0"
-                    ),
+                    similarity_score=result["score"],  # Using "score" instead of "similarity_score"
+                    chunk_index=result.get("chunk_index", 0),
+                    book_version=result.get("book_version", "v1.0"),
                 )
 
                 retrieved_chunks.append(chunk)
@@ -224,10 +224,13 @@ class RetrieverAgent:
             dummy_query = "chapter contents"
             query_embedding = self.embeddings.embed_text(dummy_query)
 
-            filters = {
-                "book_version": book_version,
-                "chapter": chapter,
-            }
+            # Skip filters to avoid index requirement in Qdrant
+            filters = None  # Temporarily disable filters
+            # Original filter code:
+            # filters = {
+            #     "book_version": book_version,
+            #     "chapter": chapter,
+            # }
 
             search_results = self.vector_store.query_vectors(
                 query_embedding=query_embedding,
@@ -238,13 +241,13 @@ class RetrieverAgent:
             chunks = []
             for result in search_results:
                 chunk = RetrievedChunk(
-                    doc_id=result.get("metadata", {}).get("doc_id", "unknown"),
-                    chapter=result.get("metadata", {}).get("chapter", "Unknown"),
-                    section=result.get("metadata", {}).get("section", "Unknown"),
-                    subsection=result.get("metadata", {}).get("subsection"),
+                    doc_id=result.get("doc_id", "unknown"),
+                    chapter=result.get("chapter", "Unknown"),
+                    section=result.get("section", "Unknown"),
+                    subsection=result.get("subsection"),
                     content=result.get("content", ""),
-                    similarity_score=result["similarity_score"],
-                    chunk_index=result.get("metadata", {}).get("chunk_index", 0),
+                    similarity_score=result["score"],  # Using "score" instead of "similarity_score"
+                    chunk_index=result.get("chunk_index", 0),
                     book_version=book_version,
                 )
                 chunks.append(chunk)

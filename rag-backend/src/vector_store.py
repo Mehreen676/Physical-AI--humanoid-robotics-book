@@ -4,7 +4,7 @@ Handles vector embeddings storage and semantic similarity search.
 """
 
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct
+from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue
 from typing import List, Dict, Optional, Tuple
 import logging
 from src.config import get_settings
@@ -183,11 +183,21 @@ class QdrantVectorStore:
         name = collection_name or self.collection_name
 
         try:
+            # Convert filters to Qdrant format if they exist
+            qdrant_filter = None
+            if filters:
+                filter_conditions = []
+                for key, value in filters.items():
+                    filter_conditions.append(FieldCondition(key=key, match=MatchValue(value=value)))
+
+                if filter_conditions:
+                    qdrant_filter = Filter(must=filter_conditions)
+
             results = self.client.search(
                 collection_name=name,
                 query_vector=query_embedding,
                 limit=k,
-                query_filter=filters,
+                query_filter=qdrant_filter,
             )
 
             scored_results = [
