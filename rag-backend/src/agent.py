@@ -12,12 +12,24 @@ from dataclasses import dataclass
 from datetime import datetime
 import time
 
-# Fix Python path for module imports
-# This handles deployment in containers where src is in the working directory
-_current_dir = os.path.dirname(os.path.abspath(__file__))
-_project_root = os.path.dirname(_current_dir)  # Go up from src/ to project root
-if _project_root not in sys.path:
-    sys.path.insert(0, _project_root)
+# ============================================================================
+# Python Path Configuration (for container deployments)
+# ============================================================================
+# Aggressively add paths to handle various deployment contexts
+_current_file = os.path.abspath(__file__)
+_current_dir = os.path.dirname(_current_file)  # /app/src or ./src
+_project_root = os.path.dirname(_current_dir)  # /app or .
+
+# Add paths to sys.path (only if not already present)
+_paths_to_add = [
+    _project_root,                          # Project root (where src/ is)
+    os.getcwd(),                            # Current working directory
+    os.path.dirname(os.getcwd()),           # Parent of cwd (for nested structures)
+]
+
+for _path in _paths_to_add:
+    if _path and _path not in sys.path:
+        sys.path.insert(0, _path)
 
 from src.retrieval_service import RetrieverAgent, RetrievedChunk
 from src.generation_service import GenerationAgent, GeneratedResponse
