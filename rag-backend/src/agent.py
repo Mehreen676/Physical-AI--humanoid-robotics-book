@@ -5,10 +5,19 @@ Combines semantic search with LLM generation and OpenAI Agent SDK for agentic be
 
 import logging
 import json
+import sys
+import os
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
 from datetime import datetime
 import time
+
+# Fix Python path for module imports
+# This handles deployment in containers where src is in the working directory
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(_current_dir)  # Go up from src/ to project root
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
 from src.retrieval_service import RetrieverAgent, RetrievedChunk
 from src.generation_service import GenerationAgent, GeneratedResponse

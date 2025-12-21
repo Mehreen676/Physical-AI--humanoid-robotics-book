@@ -5,9 +5,19 @@ Complete backend with models, endpoints, and middleware for RAG-based query hand
 
 import logging
 import time
+import sys
+import os
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+# Fix Python path for module imports
+# This handles deployment in containers where src is in the working directory
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(_current_dir)  # Go up from src/ to project root
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
