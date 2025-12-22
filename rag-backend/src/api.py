@@ -473,7 +473,7 @@ async def query_content(request: QueryRequest):
 
         # Import services
         from src.retrieval_service import RetrieverAgent
-        from src.generation_service import GeneratorAgent
+        from src.generation_service import GenerationAgent
 
         # Step 1: Retrieve relevant chunks
         logger.info("🔍 Retrieving relevant content...")
@@ -506,7 +506,7 @@ async def query_content(request: QueryRequest):
         logger.info("🤖 Generating response...")
         generation_start = time.time()
 
-        generator = GeneratorAgent()
+        generator = GenerationAgent()
         context = "\n\n".join([chunk.content for chunk in retrieved_chunks[:3]])
 
         generated = generator.generate(
