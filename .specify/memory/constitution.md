@@ -56,9 +56,114 @@ Reusable Claude Code subagents and skills prioritized throughout. Prompt History
 - **Testing**: Unit tests for components, integration tests for RAG pipeline, manual QA for all interactive features.
 - **Accessibility**: WCAG 2.1 AA compliance, semantic HTML, keyboard navigation, alt text for all diagrams.
 
+## Phase 1 Module-Specific Principles
+
+### Module 1: The Robotic Nervous System (ROS 2)
+
+#### ROS 2 Foundation & Coverage
+Each ROS 2 chapter MUST comprehensively cover:
+- **Nodes**: Process isolation, communication patterns, lifecycle management (composition vs. standalone)
+- **Topics & Services**: Pub-sub messaging, request-reply semantics, latency implications, best practices
+- **Middleware & Executors**: DDS (Data Distribution Service), real-time guarantees, thread models
+- **Tools & Debugging**: `ros2 topic`, `ros2 service`, `rqt`, logging infrastructure, best practices for debugging distributed systems
+- **Real-World Context**: How concepts apply to humanoid robot control, sensor fusion, and multi-robot coordination
+
+**Rationale**: ROS 2 is the foundation of modern robotics. Learners MUST understand nodes, topics, and services deeply to design robust systems. Skipping these fundamentals leads to runtime failures and poor robot behavior.
+
+#### Simulation-First Validation
+All ROS 2 concepts MUST be validated in Gazebo or equivalent simulation BEFORE real-world application sections. Code examples provided MUST be runnable in the simulated environment with clear instructions for setup.
+
+**Rationale**: Simulation provides safe, repeatable learning without hardware costs. Learners gain confidence before deploying to real robots.
+
+#### Integration with Gazebo/Unity (Module 2 Preview)
+Chapter conclusions MUST reference how each ROS 2 concept connects to simulation (Gazebo plugin architecture, sensor simulation, physics). Links to Module 2 (Gazebo/Unity) should be embedded where relevant.
+
+**Rationale**: Learning is reinforced when learners see how components interconnect across modules.
+
+#### Personalization & Accessibility
+Each chapter MUST include:
+- **Difficulty Toggle**: "Beginner" path (setup, basic examples) vs. "Advanced" (internals, optimization, debugging)
+- **Code Examples**: Provided in both Python (faster to prototype) and C++ (production-grade). Selection per user preference stored in Better-Auth profile.
+- **Urdu Translation**: All learning outcomes, key concepts, and code comments available in Urdu. Technical terminology (node, topic, service, DDS) preserved as-is with English pronunciation guides.
+- **Interactive Checkpoints**: Quiz after each major section (5 MCQs, auto-graded). Chatbot available for contextual help.
+
+**Rationale**: Diverse learners benefit from multiple difficulty levels, language options, and paced learning. Personalization increases engagement and retention.
+
+#### Reusable Assets Deployment
+Module 1 chapters are generated using:
+- **@ChapterWriter skill**: Generates MDX with structure (learning outcomes → concepts → examples → quiz → further reading)
+- **@CodeExampleGenerator skill**: Produces tested Python/C++ code with setup instructions
+- **@UrduTranslator skill**: Translates content, preserving technical terminology
+- **@QuizGenerator skill**: Creates 5-MCQ quizzes with misconception-aligned distractors
+- **@DiagramDescriber skill**: Generates Mermaid diagrams for node graphs, message flows, and architecture
+- **@ContentPersonalizer skill**: Adapts code examples and explanations per user background
+
+**Rationale**: Reusable skills ensure consistency, scalability, and reduce manual writing burden. Subagents (@RoboticsExpert, @Educator) review and approve all outputs per quality gates.
+
+#### RAG Chatbot Integration
+Chapter content is automatically indexed into Qdrant upon publication. Learners can:
+- Ask freeform questions (e.g., "How do I create a custom message type?") → chatbot retrieves relevant sections + provides answer with source citations
+- Select text and query directly (e.g., highlight "DDS middleware" → ask "explain this in detail")
+
+**Rationale**: RAG chatbot extends learning beyond static text. Contextual answers reduce learner frustration and reinforce key concepts.
+
+#### Chapter Structure Template
+All Module 1 chapters follow this MDX structure:
+
+```
+# Chapter Title
+
+## Learning Outcomes
+- Outcome 1
+- Outcome 2
+- ...
+
+## Introduction
+[Engaging context, real-world relevance]
+
+## Core Concepts
+### Concept 1
+[Detailed explanation with examples]
+### Concept 2
+[...]
+
+## Hands-On Exercise
+[Step-by-step tutorial with Gazebo simulation]
+
+## Code Examples
+### Python Example
+[Runnable code with setup instructions]
+### C++ Example
+[Production-grade equivalent]
+
+## Quiz
+[5 auto-graded MCQs]
+
+## Further Reading
+[Links to ROS 2 docs, papers, related chapters]
+
+## Difficulty/Language Toggles
+[UI buttons for content adaptation]
+```
+
+**Rationale**: Consistent structure aids navigation, simplifies maintenance, and enables content reuse across modules.
+
+---
+
 ## Governance
 
 Constitution supersedes all other documents. Amendments require documented justification, team agreement, and migration plan. All PRs must verify compliance with principles. Use `.specify/` templates and this constitution as reference during development.
 
-**Version**: 1.0.0 | **Ratified**: 2025-12-24 | **Last Amended**: 2025-12-24
+**Amendment Procedure**:
+1. Proposed change documented in issue/PR with rationale
+2. Review by @SpecArchitect + @RoboticsExpert + @Educator (for module-specific changes)
+3. Approval signals minor/major version bump
+4. Update constitution, propagate to dependent docs (SPEC, PLAN, TASKS), commit to main
+
+**Versioning**:
+- MAJOR: Backward-incompatible principle removals or fundamental redefinitions
+- MINOR: New principles, expanded sections, significant clarifications
+- PATCH: Wording, clarifications, typo fixes, non-semantic refinements
+
+**Version**: 1.1.0 | **Ratified**: 2025-12-24 | **Last Amended**: 2025-12-24
 
