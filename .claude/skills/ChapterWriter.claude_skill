@@ -1,0 +1,206 @@
+---
+id: ChapterWriter
+name: Chapter Writer
+type: skill
+version: 1.0.0
+category: content-generation
+tags: [mdx, education, textbook, docusaurus]
+---
+
+# ChapterWriter Skill
+
+## Purpose
+Generates complete, high-quality textbook chapters in MDX format for the Physical AI & Humanoid Robotics interactive textbook. Produces production-ready content with pedagogical rigor, code examples, diagrams, and assessments.
+
+## Inputs
+
+```yaml
+chapter_title:
+  type: string
+  description: "Title of the chapter (e.g., 'ROS 2 Publishers and Subscribers')"
+  required: true
+
+module_number:
+  type: integer
+  description: "Module number (1-4)"
+  required: true
+
+chapter_number:
+  type: integer
+  description: "Chapter number within module"
+  required: true
+
+audience_level:
+  type: string
+  enum: [beginner, intermediate, advanced]
+  description: "Target audience level for depth and complexity"
+  required: true
+
+learning_outcomes:
+  type: array<string>
+  description: "3-5 learning outcomes students should achieve"
+  example:
+    - "Understand publisher-subscriber pattern in ROS 2"
+    - "Create and run a custom ROS 2 node"
+  required: true
+
+key_concepts:
+  type: array<string>
+  description: "5-8 core concepts to cover"
+  example:
+    - "Topics", "Message types", "Quality of Service"
+  required: false
+
+code_language:
+  type: string
+  enum: [python, cpp, python+cpp]
+  description: "Programming language for code examples"
+  default: python
+  required: false
+
+include_external_refs:
+  type: array<string>
+  description: "External references (ROS 2 docs, papers, tutorials)"
+  required: false
+```
+
+## Output
+
+Complete MDX chapter file with the following structure:
+
+```mdx
+---
+id: module-X-chapter-Y
+title: Chapter Title
+sidebar_label: Short Title
+sidebar_position: Y
+---
+
+import { Quiz, CodeBlock, Diagram, Callout } from '@site/src/components';
+
+## Learning Outcomes
+- [ ] Outcome 1
+- [ ] Outcome 2
+- [ ] Outcome 3
+
+## Introduction
+[2-3 paragraphs: context, motivation, real-world relevance]
+
+## Core Concepts
+
+### Concept 1: [Name]
+[Detailed explanation with clear structure]
+[Include motivation and how it relates to learning outcomes]
+
+### Concept 2: [Name]
+[Detailed explanation...]
+
+## Hands-On Exercise
+[Step-by-step walkthrough with numbered steps]
+
+<CodeBlock language="python" title="example_code.py">
+{`# Complete, runnable code example
+# Includes imports, comments, and best practices
+...
+`}</CodeBlock>
+
+## Advanced Topics (if audience_level >= intermediate)
+[Additional depth, optimization, edge cases]
+
+## Common Pitfalls & Debugging
+- Pitfall 1: [Description + solution]
+- Pitfall 2: [Description + solution]
+
+## Quiz
+
+<Quiz
+  questions={[
+    {
+      id: "q1",
+      question: "Multiple choice question?",
+      options: ["Option A", "Option B", "Option C", "Option D"],
+      correctAnswer: 0,
+      explanation: "Explanation for correct answer"
+    },
+    // 4 more questions...
+  ]}
+/>
+
+## Key Takeaways
+- Takeaway 1: [Concise summary]
+- Takeaway 2: [Concise summary]
+- Takeaway 3: [Concise summary]
+
+## Further Reading
+- [ROS 2 Official Documentation](https://docs.ros.org/)
+- [Relevant Research Paper](url)
+- [Tutorial/Blog Post](url)
+
+## Summary
+[Final paragraph: recap key concepts, transition to next chapter]
+```
+
+## Quality Standards
+
+✅ **Mandatory**
+- All code examples are tested and runnable
+- Learning outcomes are measurable and clear
+- Section headings follow markdown hierarchy (## → ###)
+- Code blocks include language specification and title
+- Quiz has 5 questions with clear correct answers
+- External references are active and accurate
+- Content is 2000-3000 words (beginner), 3000-4500 words (intermediate), 4500-6000+ words (advanced)
+- MDX syntax is valid (proper imports, component props, JSX)
+
+✅ **Recommended**
+- Include ASCII diagrams or Mermaid chart descriptions for complex concepts
+- Add "Note", "Warning", or "Tip" callouts using `<Callout>` component
+- Provide 2-3 code examples per concept section
+- Include video/animation descriptions where helpful
+- Add section-by-section quiz to reinforce learning
+
+## Usage Examples
+
+### Example 1: Beginner ROS 2 Chapter
+```
+Input:
+  chapter_title: "Introduction to ROS 2 Topics"
+  module_number: 1
+  chapter_number: 3
+  audience_level: beginner
+  learning_outcomes:
+    - "Understand pub-sub messaging pattern"
+    - "Create a publisher node"
+    - "Create a subscriber node"
+  key_concepts: ["Topics", "Messages", "Nodes", "Quality of Service"]
+  code_language: python
+
+Output: 3000-word MDX file with simple explanations, basic code, beginner-friendly quizzes
+```
+
+### Example 2: Advanced NVIDIA Isaac Chapter
+```
+Input:
+  chapter_title: "Physics-Based Manipulation in Isaac Sim"
+  module_number: 3
+  chapter_number: 4
+  audience_level: advanced
+  learning_outcomes:
+    - "Simulate contact dynamics in Isaac Sim"
+    - "Configure grasping plugins"
+    - "Optimize physics parameters"
+  key_concepts: ["PhysX engine", "Contact modeling", "Grasp stability", "Jacobian control"]
+  code_language: python+cpp
+
+Output: 5500-word MDX file with research references, optimization techniques, advanced debugging
+```
+
+## Dependencies
+- MDX 2.x syntax knowledge
+- Docusaurus component library familiarity
+- Technical writing skills
+- Subject matter expertise (robotics, ROS 2, simulation)
+
+## Integration
+Part of @Educator and @ContentPersonalizer subagent workflows. Used in parallel for all 12 chapters to accelerate content production.
+

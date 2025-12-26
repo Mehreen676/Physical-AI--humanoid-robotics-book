@@ -1,0 +1,167 @@
+---
+id: UrduTranslator
+name: Urdu Translator
+type: skill
+version: 1.0.0
+category: localization
+tags: [urdu, translation, mdx, multilingual]
+---
+
+# UrduTranslator Skill
+
+## Purpose
+Translates technical English MDX content to high-quality Urdu while preserving technical terms, code blocks, mathematical notation, and all MDX formatting. Maintains educational accuracy and readability for Urdu-speaking learners of robotics and AI.
+
+## Inputs
+
+```yaml
+english_content:
+  type: string (MDX)
+  description: "Complete English MDX chapter content to translate"
+  required: true
+
+target_audience:
+  type: string
+  enum: [students, professionals, general]
+  description: "Target audience for tone and complexity"
+  default: students
+  required: false
+
+preserve_terms:
+  type: array<string>
+  description: "Technical terms to keep in English (auto-includes ROS 2, URDF, Gazebo, etc.)"
+  example: ["ROS 2", "URDF", "Gazebo", "Publisher", "Subscriber"]
+  required: false
+
+glossary:
+  type: object
+  description: "Custom English-Urdu terminology mappings"
+  example:
+    "Node": "نوڈ"
+    "Topic": "موضوع"
+  required: false
+```
+
+## Output
+
+Urdu MDX translation with:
+- All text converted to Urdu (اردو)
+- Technical terms kept in English: ROS 2, URDF, Gazebo, NVIDIA Isaac, VLA, Python, C++, etc.
+- All code blocks preserved exactly as-is (Python/C++ code unchanged)
+- LaTeX math expressions preserved: `$...$` and `$$...$$`
+- MDX component tags unchanged: `<CodeBlock>`, `<Quiz>`, `<Callout>`, `<Diagram>` etc.
+- Headings translated: `## Learning Outcomes` → `## سیکھنے کے مقاصد`
+- Links preserved: `[Text](url)` → `[اردو متن](url)`
+- YAML frontmatter unchanged (id, title, sidebar_label in English for routing)
+- List bullets and formatting preserved
+- Comments in code blocks translated only if standalone; inline code comments left as-is
+
+## Quality Standards
+
+✅ **Mandatory**
+- All non-code text is in proper Urdu (Unicode U+0600 to U+06FF)
+- Technical/proper nouns preserved in English
+- Code blocks completely unchanged (no translation of variable names, function calls)
+- MDX syntax integrity maintained (all `<>` tags intact)
+- Math expressions preserved
+- Links functional
+- YAML frontmatter unchanged
+
+✅ **Recommended**
+- Use standard Urdu terminology for common concepts (see Glossary section)
+- Maintain tone consistency with original (educational, clear, accessible)
+- Add transliteration in parentheses for complex terms if helpful: `نوڈ (Node)`
+- Preserve learning flow and section emphasis from original
+- Review by native Urdu speaker
+
+## Preservation Rules
+
+### Code Blocks (100% Preserved)
+```
+<CodeBlock language="python" title="example.py">
+{`# This stays EXACTLY the same
+import rospy
+def listener():
+    rospy.Subscriber('chatter', String, callback)
+`}</CodeBlock>
+```
+Becomes:
+```
+<CodeBlock language="python" title="example.py">
+{`# This stays EXACTLY the same
+import rospy
+def listener():
+    rospy.Subscriber('chatter', String, callback)
+`}</CodeBlock>
+```
+
+### Technical Headings
+- `## Introduction to ROS 2` → `## ROS 2 کا تعارف`
+- `### Publisher-Subscriber Pattern` → `### Publisher-Subscriber نمونہ`
+- `#### QoS Settings` → `#### QoS ترتیبات`
+
+### Glossary of Standard Terms
+| English | Urdu | Notes |
+|---------|------|-------|
+| Node | نوڈ | Keep "Node" in code/technical context |
+| Topic | موضوع | Publisher/Subscriber communication |
+| Service | سروس | ROS 2 request-reply pattern |
+| Message | پیغام | Data structure |
+| Package | پیکج | ROS 2 code organization |
+| Workspace | کام کی جگہ | Development environment |
+| Robot | روبوٹ | Mechanical system |
+| Sensor | سینسر | Input device |
+| Actuator | ایکچویٹر | Output device |
+| Simulation | نقالی | Virtual environment |
+| Learning Outcome | سیکھنے کا مقصد | Educational goal |
+| Key Takeaway | اہم نکتہ | Summary point |
+| Quiz | سوالات کا مجموعہ | Assessment |
+
+## Usage Examples
+
+### Example 1: ROS 2 Topic Chapter Translation
+```
+Input:
+  english_content: [Complete MDX chapter on ROS 2 Topics]
+  target_audience: students
+  preserve_terms: ["ROS 2", "Topic", "Publisher", "Subscriber", "Quality of Service"]
+
+Output:
+  urdu_content: اردو میں مکمل MDX فصل
+  - تمام متن اردو میں
+  - ROS 2, Publisher, Subscriber وغیرہ انگریزی میں رہے
+  - تمام کوڈ بلاک بالکل ویسے ہی
+  - تمام لنکس محفوظ
+```
+
+### Example 2: Advanced Simulation Chapter
+```
+Input:
+  english_content: [Physics simulation chapter with equations and C++ code]
+  target_audience: professionals
+  glossary:
+    "Dynamics": "حرکیات"
+    "Contact": "رابطہ"
+    "Grasp": "پکڑ"
+
+Output:
+  urdu_content: [High-quality Urdu translation with proper terminology]
+```
+
+## Limitations
+- English-only source text (other languages not supported)
+- Native Urdu speaker review recommended for technical accuracy
+- Context-dependent terms may need glossary customization
+- Regional Urdu variations (Pakistan vs. India) should be specified
+- Translation quality depends on source content clarity
+
+## Integration
+Part of @Translator subagent workflow. Run after chapter finalization. Paired with human review for quality assurance. Supports bonus goal: multilingual educational content.
+
+## Success Metrics
+- 100% code block preservation (no changes)
+- 95%+ valid Urdu text (Unicode correct, grammar sound)
+- Zero broken MDX syntax
+- All external links functional
+- Glossary terms consistent across all chapters
+
