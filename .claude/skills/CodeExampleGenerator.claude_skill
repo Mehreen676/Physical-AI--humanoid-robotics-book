@@ -1,0 +1,532 @@
+---
+id: CodeExampleGenerator
+name: Code Example Generator
+type: skill
+version: 1.0.0
+category: code-generation
+tags: [code, examples, python, cpp, ros2, mdx]
+---
+
+# CodeExampleGenerator Skill
+
+## Purpose
+Generates complete, runnable code examples for robotics and AI concepts. Produces well-documented, tested code snippets in Python and/or C++ that demonstrate key patterns, solve real problems, and can be directly copy-pasted and executed by learners.
+
+## Inputs
+
+```yaml
+concept:
+  type: string
+  description: "Robotics/AI concept to exemplify (e.g., 'ROS 2 publisher subscriber', 'simple URDF for arm', 'rclpy node with callbacks', 'Isaac Sim control loop')"
+  required: true
+
+language:
+  type: string
+  enum: [python, cpp, python+cpp]
+  description: "Programming language(s) for the example"
+  default: python
+  required: false
+
+complexity:
+  type: string
+  enum: [minimal, moderate, complete]
+  description: "Code complexity level"
+  default: moderate
+  required: false
+
+use_case:
+  type: string
+  description: "Specific use case or scenario (e.g., 'beginner ROS 2 learning', 'production sensor integration', 'simulation in Gazebo')"
+  required: false
+
+include_tests:
+  type: boolean
+  description: "Include unit test code"
+  default: false
+  required: false
+
+include_error_handling:
+  type: boolean
+  description: "Include error handling and edge cases"
+  default: true
+  required: false
+
+target_platform:
+  type: string
+  enum: [ubuntu-20.04, ubuntu-22.04, windows-10, macos]
+  description: "Target deployment platform"
+  default: ubuntu-22.04
+  required: false
+```
+
+## Output
+
+Complete, production-ready code example in MDX format:
+
+```mdx
+<CodeBlock language="python" title="ros2_publisher_example.py">
+{`#!/usr/bin/env python3
+"""
+ROS 2 Publisher Example
+
+This example demonstrates how to create a simple ROS 2 publisher node
+that publishes string messages to a topic.
+
+Prerequisites:
+  - ROS 2 installed (Humble or later)
+  - rclpy installed (included with ROS 2)
+
+Usage:
+  python ros2_publisher_example.py
+"""
+
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+
+
+class MinimalPublisher(Node):
+    """A simple publisher node that publishes to 'topic' every 0.5 seconds."""
+
+    def __init__(self):
+        super().__init__('minimal_publisher')
+        self.publisher_ = self.create_publisher(String, 'topic', 10)
+        timer_period = 0.5  # seconds
+        self.timer = self.create_timer(timer_period, self.timer_callback)
+        self.i = 0
+
+    def timer_callback(self):
+        """Called periodically by the timer to publish a message."""
+        msg = String()
+        msg.data = f'Hello World: {self.i}'
+        self.publisher_.publish(msg)
+        self.get_logger().info(f'Publishing: "{msg.data}"')
+        self.i += 1
+
+
+def main(args=None):
+    """Main function to initialize and run the ROS 2 node."""
+    rclpy.init(args=args)
+
+    minimal_publisher = MinimalPublisher()
+
+    try:
+        rclpy.spin(minimal_publisher)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        minimal_publisher.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
+`}</CodeBlock>
+```
+
+## Code Example Structure
+
+### Essential Components
+
+```
+1. Shebang line (#!) - for executable scripts
+2. Module docstring - what the code does, prerequisites, usage
+3. Imports - all required libraries, organized
+4. Constants - configuration values (not magic numbers)
+5. Class/Function definitions - well-documented
+6. Error handling - try-except for robustness
+7. Main function - entry point for the script
+8. Usage guard (if __name__ == '__main__') - Python only
+```
+
+### Documentation Requirements
+
+```python
+#!/usr/bin/env python3
+"""
+[One-line description]
+
+[Detailed description: what does this code do?]
+[Why would you use it?]
+
+Prerequisites:
+  - Dependency 1
+  - Dependency 2
+
+Installation:
+  pip install -r requirements.txt
+  OR
+  sudo apt install ros-humble-rclpy
+
+Usage:
+  python script.py [arguments]
+
+Example output:
+  [sample output here]
+"""
+```
+
+### Comments & Explanations
+
+```python
+# Class/function description (1-2 lines)
+def my_function():
+    """Docstring: what does this function do?"""
+    # Brief explanation of complex logic
+    result = expensive_computation()  # Why we do this
+    return result
+```
+
+## Quality Standards
+
+✅ **Mandatory**
+- Code is syntactically correct and tested (must run)
+- All imports are necessary and available
+- Comments explain "why", not "what" (code shows what)
+- Error handling for user input and common failures
+- Output/print statements show what's happening
+- Installation/setup instructions provided
+- Prerequisites and dependencies listed
+- Code follows style guidelines (PEP 8 for Python, Google style for C++)
+
+✅ **Recommended**
+- Include unit tests or test cases
+- Show multiple approaches (simple → advanced)
+- Include performance benchmarks if relevant
+- Add edge cases and error scenarios
+- Provide input/output examples
+- Link to official docs for frameworks used
+- Include TODOs for students to explore
+
+## Language-Specific Guidelines
+
+### Python
+
+**Style**: PEP 8 (https://pep8.org/)
+```python
+# Good: descriptive names, proper spacing
+def calculate_distance(x1, y1, x2, y2):
+    """Calculate Euclidean distance between two points."""
+    return ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
+
+# Bad: unclear names, inconsistent spacing
+def calc(a,b,c,d):
+    return ((c-a)**2+(d-b)**2)**0.5
+```
+
+**ROS 2 Python Best Practices**:
+```python
+# Use rclpy for ROS 2 nodes
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+
+class MyNode(Node):
+    def __init__(self):
+        super().__init__('node_name')  # IMPORTANT: unique node name
+        self.subscription = self.create_subscription(
+            String, 'topic_name', self.listener_callback, 10
+        )
+
+    def listener_callback(self, msg):
+        self.get_logger().info(f'Received: {msg.data}')
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = MyNode()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+### C++
+
+**Style**: Google C++ Style Guide / ROS 2 conventions
+```cpp
+// Good: descriptive names, proper spacing, const-correctness
+double calculateDistance(double x1, double y1, double x2, double y2) {
+  return std::sqrt(std::pow(x2 - x1, 2) + std::pow(y2 - y1, 2));
+}
+
+// ROS 2 C++ Best Practices
+#include "rclcpp/rclcpp.hpp"
+#include "std_msgs/msg/string.hpp"
+
+class MyNode : public rclcpp::Node {
+ public:
+  MyNode() : Node("node_name") {
+    subscription_ = this->create_subscription<std_msgs::msg::String>(
+        "topic_name", 10,
+        std::bind(&MyNode::listener_callback, this, std::placeholders::_1));
+  }
+
+ private:
+  void listener_callback(const std_msgs::msg::String& msg) const {
+    RCLCPP_INFO(this->get_logger(), "Received: %s", msg.data.c_str());
+  }
+
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr subscription_;
+};
+
+int main(int argc, char* argv[]) {
+  rclcpp::init(argc, argv);
+  rclcpp::spin(std::make_shared<MyNode>());
+  rclcpp::shutdown();
+  return 0;
+}
+```
+
+## Complexity Levels
+
+### Minimal (< 50 lines)
+- Bare essentials only
+- Focused on one concept
+- Suitable for quick understanding
+- Best for: definitions, simple patterns
+
+```python
+# Minimal: just the core pattern
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+
+class Publisher(Node):
+    def __init__(self):
+        super().__init__('pub')
+        self.pub = self.create_publisher(String, 'topic', 10)
+        self.timer = self.create_timer(1.0, lambda:
+            self.pub.publish(String(data='Hello')))
+
+rclpy.init()
+rclpy.spin(Publisher())
+rclpy.shutdown()
+```
+
+### Moderate (50-150 lines)
+- Practical, real-world oriented
+- Includes error handling and logging
+- Suitable for learning and small projects
+- Best for: typical use cases, tutorials
+
+```python
+# Moderate: production-ready pattern with error handling
+#!/usr/bin/env python3
+"""Publisher with error handling and logging."""
+
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+
+class Publisher(Node):
+    def __init__(self):
+        super().__init__('publisher')
+        self.pub = self.create_publisher(String, 'topic', 10)
+        self.timer = self.create_timer(1.0, self.publish_message)
+        self.counter = 0
+
+    def publish_message(self):
+        try:
+            msg = String(data=f'Message {self.counter}')
+            self.pub.publish(msg)
+            self.get_logger().info(f'Published: {msg.data}')
+            self.counter += 1
+        except Exception as e:
+            self.get_logger().error(f'Failed to publish: {e}')
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = Publisher()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+### Complete (150+ lines)
+- Production code with all bells and whistles
+- Advanced patterns, optimization, comprehensive testing
+- Suitable for professional deployment
+- Best for: advanced courses, real-world projects
+
+```python
+# Complete: full-featured implementation with tests, docs, config
+#!/usr/bin/env python3
+"""Complete ROS 2 Publisher with configuration, logging, and testing."""
+
+import argparse
+import logging
+from typing import Optional
+import rclpy
+from rclpy.node import Node
+from rclpy.logging import get_logger
+from std_msgs.msg import String
+from rcl_interfaces.msg import ParameterDescriptor
+
+class AdvancedPublisher(Node):
+    """A robust publisher with parameter support and comprehensive logging."""
+
+    def __init__(self, publish_rate: float = 1.0, message_prefix: str = 'Message'):
+        super().__init__('advanced_publisher')
+
+        # Declare parameters
+        self.declare_parameter(
+            'publish_rate', publish_rate,
+            ParameterDescriptor(description='Publishing rate in Hz')
+        )
+        self.declare_parameter(
+            'message_prefix', message_prefix,
+            ParameterDescriptor(description='Prefix for published messages')
+        )
+
+        # Setup logging
+        self.logger = get_logger('AdvancedPublisher')
+        self.logger.info('Initializing advanced publisher')
+
+        # Create publisher
+        self.publisher_ = self.create_publisher(String, 'topic', 10)
+
+        # Setup timer with dynamic rate
+        rate = self.get_parameter('publish_rate').value
+        self.timer = self.create_timer(1.0 / rate, self.publish_message)
+        self.counter = 0
+
+    def publish_message(self) -> None:
+        """Publish a timestamped message."""
+        try:
+            prefix = self.get_parameter('message_prefix').value
+            msg = String(data=f'{prefix} #{self.counter}')
+            self.publisher_.publish(msg)
+            self.logger.debug(f'Published: {msg.data}')
+            self.counter += 1
+        except Exception as e:
+            self.logger.error(f'Publication failed: {e}', exc_info=True)
+
+def main(args: Optional[list] = None) -> None:
+    """Main entry point with CLI argument parsing."""
+    parser = argparse.ArgumentParser(description='ROS 2 Advanced Publisher')
+    parser.add_argument('--rate', type=float, default=1.0, help='Publish rate (Hz)')
+    parser.add_argument('--prefix', type=str, default='Message', help='Message prefix')
+    parser.add_argument('--loglevel', default='INFO', choices=['DEBUG', 'INFO', 'WARN', 'ERROR'])
+
+    cli_args = parser.parse_args(args)
+
+    rclpy.init(args=args)
+    node = AdvancedPublisher(publish_rate=cli_args.rate, message_prefix=cli_args.prefix)
+
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        node.logger.info('Shutdown signal received')
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+## Usage Examples
+
+### Example 1: Simple ROS 2 Node
+```
+Input:
+  concept: "ROS 2 publisher subscriber"
+  language: python
+  complexity: minimal
+  use_case: beginner learning
+
+Output: 20-30 line Python script showing core pub-sub pattern
+```
+
+### Example 2: Production URDF Loader
+```
+Input:
+  concept: "Load and display URDF in Gazebo"
+  language: python
+  complexity: complete
+  include_error_handling: true
+  include_tests: true
+  target_platform: ubuntu-22.04
+
+Output: Full-featured script with error handling, tests, logging
+```
+
+### Example 3: C++ Isaac Sim Integration
+```
+Input:
+  concept: "Control robot in Isaac Sim via ROS 2"
+  language: cpp
+  complexity: moderate
+  use_case: simulation control
+
+Output: Production C++ example with proper class structure, error handling
+```
+
+## MDX Integration
+
+```mdx
+<CodeBlock language="python" title="my_ros_node.py">
+{`#!/usr/bin/env python3
+"""ROS 2 Publisher Example"""
+
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+
+class MinimalPublisher(Node):
+    def __init__(self):
+        super().__init__('minimal_publisher')
+        self.pub = self.create_publisher(String, 'topic', 10)
+        self.timer = self.create_timer(0.5, self.callback)
+        self.i = 0
+
+    def callback(self):
+        msg = String(data=f'Hello {self.i}')
+        self.pub.publish(msg)
+        self.get_logger().info(f'Published: {msg.data}')
+        self.i += 1
+
+def main(args=None):
+    rclpy.init(args=args)
+    rclpy.spin(MinimalPublisher())
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+`}</CodeBlock>
+```
+
+## Testing Code Examples
+
+All code examples should be tested:
+
+```bash
+# Python example
+python my_script.py  # Should run without errors
+
+# C++ example
+colcon build
+ros2 run my_package my_node  # Should initialize cleanly
+```
+
+## Integration
+
+Part of @Educator workflow. Generated alongside chapter content. One code example per major concept. Used to bridge theory and practice.
+
+## Success Metrics
+- ✅ 100% of code examples are tested and runnable
+- ✅ Code quality: passes linting (pylint, flake8, clang-format)
+- ✅ Readability: new learners can understand within 5 minutes
+- ✅ Completeness: all required imports, no missing dependencies
+- ✅ Documentation: clear docstrings, helpful comments
+- ✅ Learner feedback: > 4/5 stars on code clarity
+

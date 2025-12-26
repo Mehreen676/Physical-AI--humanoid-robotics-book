@@ -1,0 +1,275 @@
+---
+id: QuizGenerator
+name: Quiz Generator
+type: skill
+version: 1.0.0
+category: assessment
+tags: [quiz, assessment, mdx, education]
+---
+
+# QuizGenerator Skill
+
+## Purpose
+Creates engaging, pedagogically sound quizzes for robotics and AI concepts. Generates multiple-choice questions with clear correct answers, distractors aligned to common misconceptions, and detailed explanations for learning reinforcement.
+
+## Inputs
+
+```yaml
+topic:
+  type: string
+  description: "Robotics/AI concept to quiz on (e.g., 'ROS 2 publisher-subscriber', 'URDF robot modeling', 'Gazebo physics', 'VLA prompt engineering')"
+  required: true
+
+difficulty:
+  type: string
+  enum: [easy, medium, hard]
+  description: "Question difficulty level"
+  required: true
+
+num_questions:
+  type: integer
+  minimum: 1
+  maximum: 10
+  description: "Number of questions to generate"
+  default: 5
+  required: false
+
+question_types:
+  type: array<string>
+  enum: [multiple-choice, true-false, fill-in, scenario-based]
+  description: "Types of questions to include"
+  default: [multiple-choice]
+  required: false
+
+learning_outcomes:
+  type: array<string>
+  description: "Learning outcomes the quiz should assess"
+  required: false
+
+context:
+  type: object
+  description: "Additional context (chapter, module, learner level)"
+  properties:
+    chapter_title: string
+    module_number: integer
+    learner_level: string (enum: beginner, intermediate, advanced)
+  required: false
+```
+
+## Output
+
+Array of quiz questions in MDX-compatible JSON format:
+
+```json
+{
+  "topic": "ROS 2 Publisher-Subscriber Pattern",
+  "difficulty": "medium",
+  "num_questions": 5,
+  "questions": [
+    {
+      "id": "pub-sub-01",
+      "question": "In ROS 2, what is the primary difference between a Topic and a Service?",
+      "type": "multiple-choice",
+      "options": [
+        "Topics use one-way asynchronous communication; Services use request-reply synchronous communication",
+        "Topics are faster than Services",
+        "Services can only be used between two nodes",
+        "Topics require a message queue; Services do not"
+      ],
+      "correctAnswer": 0,
+      "explanation": "Topics follow a publish-subscribe pattern where publishers send messages asynchronously to potentially multiple subscribers. Services use a request-reply pattern where a client sends a request and waits for a response from a server. This is a fundamental distinction in ROS 2 communication patterns.",
+      "difficulty": "medium",
+      "learningOutcome": "Understand topic vs. service communication patterns",
+      "commonMisconceptions": [
+        "Speed difference (not the primary distinction)",
+        "One-to-one only (Services can have multiple clients)"
+      ]
+    },
+    {
+      "id": "pub-sub-02",
+      "question": "What is Quality of Service (QoS) in ROS 2 topics?",
+      "type": "multiple-choice",
+      "options": [
+        "A policy that defines how messages are delivered (reliability, durability, history)",
+        "A protocol that encrypts messages",
+        "A mechanism to limit the number of publishers",
+        "A feature that automatically compresses messages"
+      ],
+      "correctAnswer": 0,
+      "explanation": "QoS profiles in ROS 2 allow you to configure how topic messages are delivered. Key settings include: Reliability (Best Effort vs. Reliable), Durability (Volatile vs. Transient Local), and History (Keep Last vs. Keep All). Different use cases require different QoS settings.",
+      "difficulty": "medium",
+      "learningOutcome": "Understand QoS settings and their purpose",
+      "commonMisconceptions": [
+        "QoS is about performance (it's about delivery guarantees)",
+        "QoS is about security (it's about reliability patterns)"
+      ]
+    },
+    {
+      "id": "pub-sub-03",
+      "question": "You're designing a robotics system where lost sensor readings are acceptable, but latency must be minimal. Which QoS profile is most appropriate?",
+      "type": "scenario-based",
+      "options": [
+        "Reliable history with durability enabled",
+        "Best Effort with volatile durability",
+        "Reliable with transient local durability",
+        "Best Effort with transient local durability"
+      ],
+      "correctAnswer": 1,
+      "explanation": "For minimal latency with tolerance for lost messages, Best Effort (unreliable but fast) with Volatile durability (don't store for late subscribers) is appropriate. Sensor data is often amenable to this because individual readings are less critical than fast updates. In contrast, command messages might need Reliable to ensure the command is received.",
+      "difficulty": "hard",
+      "learningOutcome": "Apply QoS knowledge to real-world scenarios",
+      "commonMisconceptions": [
+        "Reliable is always better (trades off latency)",
+        "Durability affects latency significantly (it's more about historical message access)"
+      ]
+    },
+    {
+      "id": "pub-sub-04",
+      "question": "True or False: In ROS 2, a Topic can have multiple publishers and multiple subscribers simultaneously.",
+      "type": "true-false",
+      "options": ["True", "False"],
+      "correctAnswer": 0,
+      "explanation": "True. The publish-subscribe pattern in ROS 2 allows multiple publishers to write to the same topic and multiple subscribers to listen. This is one of the core strengths of topic-based communication.",
+      "difficulty": "easy",
+      "learningOutcome": "Understand Topic many-to-many communication",
+      "commonMisconceptions": [
+        "Only one publisher per topic (many publishers supported)",
+        "Subscribers block publishers (asynchronous, no blocking)"
+      ]
+    },
+    {
+      "id": "pub-sub-05",
+      "question": "When would you use a Service instead of a Topic in ROS 2?",
+      "type": "multiple-choice",
+      "options": [
+        "When you need request-reply semantics and the client must wait for a response",
+        "When you want to broadcast data to multiple receivers",
+        "When you need to send data continuously at a fixed rate",
+        "When you want to avoid storing message history"
+      ],
+      "correctAnswer": 0,
+      "explanation": "Services are ideal for request-reply interactions where a client sends a request and expects a response (e.g., setting a parameter, triggering an action). Topics are better for continuous data streams (e.g., sensor readings, status updates). Services block the client until the server responds.",
+      "difficulty": "medium",
+      "learningOutcome": "Choose appropriate communication pattern",
+      "commonMisconceptions": [
+        "Services are always faster (Topics have lower latency per message)",
+        "Services are required for actions (Actions are different from Services)"
+      ]
+    }
+  ],
+  "metadata": {
+    "chapter": "Module 1, Chapter 3",
+    "estimatedTime": "10-15 minutes",
+    "bloomsLevel": ["understand", "apply", "analyze"],
+    "keywords": ["ROS 2", "Topics", "Services", "QoS", "Pub-Sub"]
+  }
+}
+```
+
+## Question Design Guidelines
+
+### Easy Questions
+- Test basic definitions and recall
+- Single concept per question
+- Clear distractors (obviously wrong)
+- Answer is directly from chapter text
+
+Example: "What does ROS 2 stand for?" with options including the correct answer and plausible distractors.
+
+### Medium Questions
+- Test understanding and simple application
+- May combine 2 concepts
+- Distractors are related but incorrect
+- Requires inference from learning outcomes
+
+Example: "In ROS 2, what is the primary difference between a Topic and a Service?"
+
+### Hard Questions
+- Test application, analysis, synthesis
+- Scenario-based or multi-concept
+- Distractors based on common misconceptions
+- Requires critical thinking and integration of knowledge
+
+Example: "Given a robot with latency-sensitive and reliability-sensitive subsystems, how would you configure QoS differently for each?"
+
+## Quality Standards
+
+✅ **Mandatory**
+- One unambiguous correct answer
+- 4 options per multiple-choice question (3 distractors)
+- All distractors are plausible (not obviously wrong)
+- Explanation is clear and references learning outcome
+- Distractors aligned to common misconceptions
+- Questions test learning outcomes, not trivia
+- No "all of the above" or "none of the above" options
+
+✅ **Recommended**
+- Mix question types (recall, application, scenario-based)
+- Include 1-2 hard questions per quiz to challenge advanced learners
+- Progressively increase difficulty (easy → medium → hard)
+- Include cross-chapter questions for integration
+- Provide hints in explanations (teach, don't just correct)
+
+## Common Misconceptions Database
+
+For each topic, maintain a list of common misconceptions:
+
+| Topic | Misconception | Correct Understanding |
+|-------|--------------|----------------------|
+| ROS 2 Topics | "Only one publisher per topic" | Multiple publishers supported |
+| ROS 2 QoS | "Reliable is always better" | Trade-off between reliability and latency |
+| URDF | "URDF describes physics" | URDF is kinematic description only; physics defined in SDF |
+| Gazebo | "Gazebo simulates reality perfectly" | Simulation simplifies physics; fine-tuning needed |
+| VLM | "VLMs always understand context" | VLMs can hallucinate; prompt engineering essential |
+
+## Difficulty Progression Example
+
+For "ROS 2 Topics" unit:
+1. **Easy**: Define Topic, Publisher, Subscriber (recall)
+2. **Medium**: Explain publish-subscribe pattern, difference from Services (comprehension)
+3. **Hard**: Design communication pattern for multi-robot system with mixed latency requirements (application/analysis)
+
+## Usage Examples
+
+### Example 1: ROS 2 Publisher-Subscriber Quiz
+```
+Input:
+  topic: "ROS 2 Publisher-Subscriber Pattern"
+  difficulty: medium
+  num_questions: 5
+  learning_outcomes:
+    - "Understand pub-sub messaging pattern"
+    - "Understand QoS settings"
+    - "Apply communication patterns to scenarios"
+
+Output: 5 medium-difficulty questions covering recall, comprehension, and application
+```
+
+### Example 2: Hard Physics Simulation Quiz
+```
+Input:
+  topic: "Gazebo Physics-Based Manipulation"
+  difficulty: hard
+  num_questions: 3
+  question_types: [scenario-based, multiple-choice]
+  learner_level: advanced
+
+Output: 3 hard scenario-based questions on contact dynamics, grasping, optimization
+```
+
+## Integration
+
+Part of @Educator workflow. Generated after chapter content finalized. Quiz embedded in MDX via `<Quiz>` component:
+
+```mdx
+<Quiz questions={generatedQuestions} />
+```
+
+Supports tracking learner performance (via backend) for adaptive learning recommendations.
+
+## Success Metrics
+- ✅ 95%+ question validity (appropriate difficulty, unambiguous correct answer)
+- ✅ 100% coverage of learning outcomes
+- ✅ Learner feedback > 4/5 stars on question clarity
+- ✅ Realistic difficulty progression (easy → medium → hard)
+
