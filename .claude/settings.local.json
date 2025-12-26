@@ -32,7 +32,8 @@
       "Bash(python -c \"import agents; print(dir(agents))\")",
       "Bash(python -c \"from api import rag_agent, startup_event; import asyncio; asyncio.run(startup_event()); print(''FastAPI RAG Agent with OpenAI Agents SDK initialized successfully'')\")",
       "Bash(npm install:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(git restore:*)"
     ]
   }
 }
