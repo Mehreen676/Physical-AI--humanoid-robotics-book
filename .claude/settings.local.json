@@ -33,7 +33,24 @@
       "Bash(python -c \"from api import rag_agent, startup_event; import asyncio; asyncio.run(startup_event()); print(''FastAPI RAG Agent with OpenAI Agents SDK initialized successfully'')\")",
       "Bash(npm install:*)",
       "Bash(cat:*)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(git fetch:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git config:*)",
+      "Bash(.specify/scripts/powershell/setup-plan.ps1 -Json)",
+      "Bash(git -C \"C:\\\\Users\\\\Lenovo\\\\Desktop\\\\text-book\" log --oneline -20)",
+      "Bash(git -C \"C:\\\\Users\\\\Lenovo\\\\Desktop\\\\text-book\" branch -a)",
+      "Bash(test:*)",
+      "Bash(dir \"C:\\\\Users\\\\Lenovo\\\\Desktop\\\\text-book\")",
+      "Bash(uv init)",
+      "Bash(uv venv:*)",
+      "Bash(uv add:*)",
+      "Bash(timeout 60 bash:*)",
+      "Bash(uv pip list:*)",
+      "Bash(tree:*)",
+      "Bash(truncate:*)",
+      "Skill(sp.git.commit_pr)",
+      "Bash(git add:*)"
     ]
   }
 }
