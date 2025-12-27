@@ -125,7 +125,7 @@ const config = {
             ],
           },
         ],
-        copyright: `Copyright � ${new Date().getFullYear()} Physical AI & Humanoid Robotics Textbook, Built with by Mehreen Asghar Ali.`,
+        copyright: `Copyright � ${new Date().getFullYear()} Physical AI & Humanoid Robotics Textbook, Built with by zohair azmat.`,
       },
       prism: {
         theme: prismThemes.github,
