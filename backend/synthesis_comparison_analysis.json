@@ -1,0 +1,69 @@
+{
+  "timestamp": "2025-12-28T12:23:21.236175",
+  "analysis": [
+    {
+      "query": "What is humanoid robotics?",
+      "retrieval": {
+        "status": "success",
+        "confidence": 0.578,
+        "sources_count": 5,
+        "execution_time_ms": 8020
+      },
+      "synthesis_ready": {
+        "can_synthesize": true,
+        "context_available": true,
+        "chunks_for_synthesis": [
+          "Welcome to thePhysical AI & Humanoid Roboticstextbook \u2014 a practical, project-driven course designed ",
+          "Welcome to thePhysical AI & Humanoid Roboticstextbook \u2014 a practical, project-driven course designed ",
+          "try-Inspired CurriculumThe content reflects what Tesla Bots, Figure AI, Apptronik, and Sanctuary AI ",
+          "most advanced robotics architecture: perception models, LLM-driven command systems, action planners,",
+          "On this pageDecoding the Future of Humanoid Robotics\u200bWelcome, future architects of physical intellig"
+        ]
+      }
+    },
+    {
+      "query": "How does ROS 2 work?",
+      "retrieval": {
+        "status": "success",
+        "confidence": 0.439,
+        "sources_count": 5,
+        "execution_time_ms": 6715
+      },
+      "synthesis_ready": {
+        "can_synthesize": true,
+        "context_available": true,
+        "chunks_for_synthesis": [
+          "On this pageDecoding the Future of Humanoid Robotics\u200bWelcome, future architects of physical intellig",
+          "ROS 2: Robot Operating System 2, middleware for robotics.URDF: Unified Robot Description Format \u2014 XM",
+          "Official ROS 2 documentation and tutorials (refer to ROS website).NVIDIA Isaac Sim and Isaac ROS off",
+          "Skip to main contentWhat This Textbook CoversThis is a complete AI-native engineering curriculum des",
+          "evel)\u200bNodes, Topics, Publishers/Subscribers\u200bNodes are independent processes. Topics are named channe"
+        ]
+      }
+    },
+    {
+      "query": "Explain bipedal walking and balance",
+      "retrieval": {
+        "status": "success",
+        "confidence": 0.369,
+        "sources_count": 5,
+        "execution_time_ms": 6986
+      },
+      "synthesis_ready": {
+        "can_synthesize": true,
+        "context_available": true,
+        "chunks_for_synthesis": [
+          "On this pageTopics Covered\u200bURDF/Xacro design patterns (modularity, reusability).Kinematics overview:",
+          "Welcome to thePhysical AI & Humanoid Roboticstextbook \u2014 a practical, project-driven course designed ",
+          "Welcome to thePhysical AI & Humanoid Roboticstextbook \u2014 a practical, project-driven course designed ",
+          "most advanced robotics architecture: perception models, LLM-driven command systems, action planners,",
+          "On this pageDecoding the Future of Humanoid Robotics\u200bWelcome, future architects of physical intellig"
+        ]
+      }
+    }
+  ],
+  "summary": {
+    "retrieval_avg_confidence": 0.462,
+    "synthesis_readiness": "Ready for implementation"
+  }
+}

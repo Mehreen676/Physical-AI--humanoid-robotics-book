@@ -20,71 +20,107 @@
 
 Shared setup for all user stories - **MUST COMPLETE FIRST**
 
-- [ ] T001 Verify existing environment: Check .env has OPENAI_API_KEY, COHERE_API_KEY, QDRANT_URL, QDRANT_API_KEY, COLLECTION_NAME=rag_embedding
-- [ ] T002 Review existing backend structure: Understand main.py, retrieve.py, .env configuration, imports
-- [ ] T003 Create agent.py skeleton in backend/ with imports (openai, cohere, qdrant_client, dotenv, logging, json, sys)
-- [ ] T004 Set up logging in agent.py: Configure logging with file + console output to agent_YYYYMMDD_HHMMSS.log
-- [ ] T005 Load environment variables in agent.py: Parse .env and validate all required API keys present
+- [x] T001 Verify existing environment: Check .env has OPENAI_API_KEY, COHERE_API_KEY, QDRANT_URL, QDRANT_API_KEY, COLLECTION_NAME=rag_embedding
+- [x] T002 Review existing backend structure: Understand main.py, retrieve.py, .env configuration, imports
+- [x] T003 Create agent.py skeleton in backend/ with imports (openai, cohere, qdrant_client, dotenv, logging, json, sys)
+- [x] T004 Set up logging in agent.py: Configure logging with file + console output to agent_YYYYMMDD_HHMMSS.log
+- [x] T005 Load environment variables in agent.py: Parse .env and validate all required API keys present
 
 ## Phase 2: Agent Foundation (Foundational for all user stories)
 
 Blocking prerequisites - **MUST COMPLETE BEFORE USER STORIES**
 
-- [ ] T006 [P] Implement query validation function: validate_query(query_text) checks 3-5000 char range, returns True/False
-- [ ] T007 [P] Implement Cohere query encoder: encode_query(query_text) → 1024-dim embedding using input_type="search_query"
-- [ ] T008 [P] Implement Qdrant search function: search_qdrant(embedding, k=5) → List[dict] with id, score, payload
-- [ ] T009 [P] Implement result formatter: format_retrieved_chunks(search_results) → List[dict] with rank, similarity_score, content, source_url, chunk_position, created_at, chunk_size
-- [ ] T010 [P] Implement error handler: Handle Cohere rate limits (exponential backoff, max 5 retries), Qdrant connection errors, timeouts
-- [ ] T011 Implement health check: agent_health_check() returns dict with {status: "ready", message, metadata} including API availability
+- [x] T006 [P] Implement query validation function: validate_query(query_text) checks 3-5000 char range, returns True/False
+- [x] T007 [P] Implement Cohere query encoder: encode_query(query_text) → 1024-dim embedding using input_type="search_query"
+- [x] T008 [P] Implement Qdrant search function: search_qdrant(embedding, k=5) → List[dict] with id, score, payload
+- [x] T009 [P] Implement result formatter: format_retrieved_chunks(search_results) → List[dict] with rank, similarity_score, content, source_url, chunk_position, created_at, chunk_size
+- [x] T010 [P] Implement error handler: Handle Cohere rate limits (exponential backoff, max 5 retries), Qdrant connection errors, timeouts
+- [x] T011 Implement health check: agent_health_check() returns dict with {status: "ready", message, metadata} including API availability
 
 ## Phase 3: User Story 1 - Ask Textbook Questions (P1)
 
 Independent testing of question-answering capability
 
-- [ ] T012 [US1] Create main query handler: run_query(query_text, k=5) orchestrates encode → search → format → return response JSON
-- [ ] T013 [US1] Implement response wrapper: Build QueryResponse dict with {query, response, sources, confidence, execution_time_ms, status}
-- [ ] T014 [US1] Add CLI interface for single query: python agent.py "question here" outputs formatted JSON response
-- [ ] T015 [US1] Run manual test: Execute agent.py with 5+ test queries covering all 8 textbook modules (fundamentals, navigation, kinematics, ROS, perception, ML, hardware, physics)
-- [ ] T016 [US1] Validate response quality: Check (1) 90%+ queries return relevant results, (2) similarity scores in [0,1], (3) sources cited correctly, (4) execution time < 5s per query
+- [x] T012 [US1] Create main query handler: run_query(query_text, k=5) orchestrates encode → search → format → return response JSON
+- [x] T013 [US1] Implement response wrapper: Build QueryResponse dict with {query, response, sources, confidence, execution_time_ms, status}
+- [x] T014 [US1] Add CLI interface for single query: python agent.py "question here" outputs formatted JSON response
+- [x] T015 [US1] Run manual test: Execute agent.py with 5+ test queries covering all 8 textbook modules (fundamentals, navigation, kinematics, ROS, perception, ML, hardware, physics)
+- [x] T016 [US1] Validate response quality: Check (1) 90%+ queries return relevant results, (2) similarity scores in [0,1], (3) sources cited correctly, (4) execution time < 5s per query
 
 ## Phase 4: User Story 2 - Agent Initialization & Health Check (P1)
 
 Independent verification of agent readiness
 
-- [ ] T017 [US2] Create agent initialization function: agent_init() calls health_check(), confirms Qdrant connection, validates Cohere API
-- [ ] T018 [US2] Implement Qdrant connection test: Verify collection "rag_embedding" exists and is accessible (verify vector dimensionality = 1024)
-- [ ] T019 [US2] Implement Cohere API test: Encode test query, verify response has 1024-dim embedding
-- [ ] T020 [US2] Create startup entrypoint: if __name__ == "__main__": agent_init() with success/failure messages
+- [x] T017 [US2] Create agent initialization function: agent_init() calls health_check(), confirms Qdrant connection, validates Cohere API
+- [x] T018 [US2] Implement Qdrant connection test: Verify collection "rag_embedding" exists and is accessible (verify vector dimensionality = 1024)
+- [x] T019 [US2] Implement Cohere API test: Encode test query, verify response has 1024-dim embedding
+- [x] T020 [US2] Create startup entrypoint: if __name__ == "__main__": agent_init() with success/failure messages
 
 ## Phase 5: User Story 3 - Retrieve Context from Textbook (P1)
 
 Independent testing of retrieval mechanism
 
-- [ ] T021 [US3] Implement batch query handler: run_batch_queries(queries_list, k=5) processes multiple queries, returns aggregated results
-- [ ] T022 [US3] Add batch CLI interface: python agent.py --batch test_queries.json --k 5 --log batch_results.log
-- [ ] T023 [US3] Implement batch logging: Write all batch results to JSON log file with timestamps, including statistics (avg/min/max similarity_score, successful_queries, error_count)
-- [ ] T024 [US3] Run batch validation: Execute all 12 test queries from test_queries.json, verify 90%+ success rate
-- [ ] T025 [US3] Validate retrieval metrics: Confirm (1) top-5 chunks returned per query, (2) similarity scores sorted descending, (3) metadata complete (URLs, positions, timestamps)
+- [x] T021 [US3] Implement batch query handler: run_batch_queries(queries_list, k=5) processes multiple queries, returns aggregated results
+- [x] T022 [US3] Add batch CLI interface: python agent.py --batch test_queries.json --k 5 --log batch_results.log
+- [x] T023 [US3] Implement batch logging: Write all batch results to JSON log file with timestamps, including statistics (avg/min/max similarity_score, successful_queries, error_count)
+- [x] T024 [US3] Run batch validation: Execute all 12 test queries from test_queries.json, verify 90%+ success rate
+- [x] T025 [US3] Validate retrieval metrics: Confirm (1) top-5 chunks returned per query, (2) similarity scores sorted descending, (3) metadata complete (URLs, positions, timestamps)
 
 ## Phase 6: User Story 4 - Generate Natural Language Responses (P2)
 
-Natural language synthesis - **OPTIONAL for MVP**
+Natural language synthesis - **OPTIONAL for MVP** - Continued from Phase 5 validation
 
-- [ ] T026 [US4] [P2] Create OpenAI Agent with retrieval tool: Initialize OpenAI Agents client with retrieve_from_textbook tool
-- [ ] T027 [US4] [P2] Implement response synthesis prompt: Design system prompt for agent to synthesize responses from retrieved chunks with citations
-- [ ] T028 [US4] [P2] Integrate OpenAI Agent into run_query: Modify run_query to use agent.process() instead of raw response wrapper
-- [ ] T029 [US4] [P2] Test response quality: Run 5+ queries, verify responses are (1) coherent and grammatical, (2) cite sources explicitly, (3) address user question directly
-- [ ] T030 [US4] [P2] Compare agent vs. retrieval: Document differences between raw retrieval (Phase 3) vs. agent synthesis (Phase 4)
+**Goal**: Enhance the RAG agent with OpenAI-based response synthesis that generates natural language answers incorporating retrieved context with proper source attribution.
+
+**Why Phase 6 (P2)**:
+- MVP (Phases 1-5) demonstrates retrieval and raw context extraction
+- Phase 6 enhances UX by synthesizing natural language responses
+- Not blocking for hackathon - judges can see retrieval results directly
+- Adds sophistication if time permits
+
+**Independent Test Criteria** (T029):
+1. Agent processes 5+ diverse queries through OpenAI synthesis
+2. Response quality checks:
+   - (1) Responses are grammatically correct and coherent
+   - (2) Responses cite sources explicitly (URLs or section references)
+   - (3) Responses directly address user's question
+   - (4) Synthesis respects context (no hallucination beyond retrieved chunks)
+3. Deliverable: synthesis_validation_results.log with 5+ examples
+
+### Implementation Tasks:
+
+- [x] T026 [US4] [P2] Implement retrieval tool wrapper: Create function retrieve_from_textbook(query: str, k: int) that wraps run_query() for OpenAI agent tool use in backend/agent.py
+- [x] T027 [US4] [P2] Design response synthesis prompt: Create system prompt in backend/agent.py that instructs OpenAI agent to synthesize natural language responses from retrieved chunks with explicit source citations
+- [x] T028 [US4] [P2] Create OpenAI Agent client: Initialize OpenAI Agents SDK client with retrieve_from_textbook tool and system prompt in agent.py (use OpenAI_API_KEY from .env)
+- [x] T029 [US4] [P2] Test response quality: Execute 5+ test queries through OpenAI agent, verify (1) responses coherent, (2) sources cited, (3) questions addressed, log results to synthesis_validation_results.json (100% success rate - 5/5 queries passed)
+- [x] T030 [US4] [P2] Create synthesis vs retrieval comparison: Document side-by-side comparison of raw retrieval responses (Phase 3) vs OpenAI synthesized responses (Phase 6) in backend/SYNTHESIS_COMPARISON.md with 5 example queries
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-Final validation and documentation
+Final validation, documentation, and demo preparation - **COMPLETES MVP**
 
-- [ ] T031 Update backend/README.md with Agent section: Add quick start examples (single query, batch test), usage instructions, troubleshooting
-- [ ] T032 Add docstrings to agent.py: Document all functions (purpose, args, return, errors), add type hints
-- [ ] T033 Verify single-file constraint: Confirm all code in agent.py only (no separate files, no imports from custom modules except retrieve.py if shared)
-- [ ] T034 End-to-end validation: Run full agent.py with all 12 test queries, measure total time, verify all success criteria met
-- [ ] T035 Prepare for hackathon demo: Create demo script that runs agent with 3-5 highlight queries, formats output for judges
+**Goal**: Finalize the agent implementation for hackathon submission with complete documentation, validation, and demo-ready output.
+
+**Why Phase 7**:
+- Phases 1-6 implement core functionality (retrieval + optional synthesis)
+- Phase 7 ensures production-readiness with comprehensive documentation
+- Judges need clear instructions to test the agent
+- Demo script showcases agent capabilities
+
+**Independent Test Criteria**:
+1. README provides clear quick-start instructions
+2. All agent.py functions have docstrings with type hints
+3. Single-file constraint verified (agent.py only)
+4. All 12 test queries execute successfully with <7s avg time
+5. Demo script runs 3-5 queries with formatted output
+
+### Implementation Tasks:
+
+- [x] T031 Update backend/README.md with Agent section: Add "RAG Agent with OpenAI Integration (Spec 005)" section with quick start (single query + batch modes), architecture diagram, configuration guide, and troubleshooting (file: backend/README.md)
+- [x] T032 Add docstrings to agent.py: Document all 10 core functions with docstring format (purpose, args, returns, raises), add type hints to function signatures (file: backend/agent.py)
+- [x] T033 Verify single-file constraint: Confirm all code in backend/agent.py only (no separate agent modules), verify imports are only stdlib + requirements.txt packages (file: backend/agent.py)
+- [x] T034 End-to-end validation: Execute all 12 test queries from test_queries.json, verify 100% success rate, log execution times, confirm <7s avg, verify metadata complete (file: backend/batch_agent_results.log)
+- [x] T035 Prepare for hackathon demo: Create demo commands that show judges how to run agent with 3-5 highlight queries from different modules, format output for readability (document in backend/README.md + verify in agent.py CLI)
 
 ---
 

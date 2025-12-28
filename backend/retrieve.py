@@ -17,7 +17,7 @@ from uuid import uuid4
 
 import cohere
 from qdrant_client import QdrantClient
-from qdrant_client.exceptions import RpcError
+   
 from dotenv import load_dotenv
 
 
@@ -47,8 +47,8 @@ load_dotenv()
 COHERE_API_KEY = os.getenv("COHERE_API_KEY")
 QDRANT_URL = os.getenv("QDRANT_URL")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
-BASE_URL = os.getenv("BASE_URL", "https://mehreen676.github.io/Physical-AI--humanoid-robotics-book")
-COLLECTION_NAME = "rag_embedding"
+BASE_URL = os.getenv("BASE_URL", "https://mehreen676.github.io/Physical-AI--humanoid-robotics-book/")
+COLLECTION_NAME = os.getenv("COLLECTION_NAME", "rag_embedding")
 DEFAULT_K = 5
 MAX_RETRIES = 5
 INITIAL_WAIT = 1
@@ -87,11 +87,15 @@ def encode_query(query_text: str) -> List[float]:
             try:
                 response = client.embed(
                     texts=[query_text],
-                    model="embed-english-light-v3.0",
-                    input_type="default"
+                    model="embed-english-v3.0",
+                    input_type="search_query"
                 )
 
-                embedding = response.embeddings[0]
+                # Extract embedding from Cohere ClientV2 response
+                if hasattr(response.embeddings, 'float_') and response.embeddings.float_:
+                    embedding = response.embeddings.float_[0]
+                else:
+                    raise ValueError("No embeddings in response")
 
                 # Validate embedding
                 if not isinstance(embedding, list) or len(embedding) != 1024:
@@ -154,9 +158,6 @@ def search_qdrant(embedding: List[float], k: int = DEFAULT_K, timeout: int = 10)
         logger.info(f"Found {len(results)} results")
         return results
 
-    except RpcError as e:
-        logger.error(f"Qdrant connection error: {e}")
-        raise ConnectionError(f"Qdrant unavailable: {e}")
     except Exception as e:
         logger.error(f"Error searching Qdrant: {e}")
         if "timeout" in str(e).lower():

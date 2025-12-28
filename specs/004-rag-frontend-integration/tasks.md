@@ -39,16 +39,16 @@ Shared setup for all user stories. **MUST COMPLETE FIRST before user stories.**
 
 ### Tasks
 
-- [ ] T001 Verify Docusaurus project structure and React setup in frontend directory
-- [ ] T002 Create TypeScript configuration for custom React components in Docusaurus src/
-- [ ] T003 Set up development environment: .env file with REACT_APP_BACKEND_URL for local dev and production
-- [ ] T004 [P] Create src/types/chat.ts with TypeScript interfaces for Query, Response, and ChatMessage
-- [ ] T005 [P] Create src/services/chatApi.ts with HTTP client functions (fetch-based, no axios dependency)
-- [ ] T006 [P] Create backend/chat_router.py with FastAPI endpoint POST /chat (skeleton, integration in later phases)
-- [ ] T007 Configure CORS in backend/main.py for origins (http://localhost:3000, https://mehreen676.github.io)
-- [ ] T008 [P] Verify FastAPI backend starts without errors and responds to GET /health endpoint
-- [ ] T009 Create contracts/chat-api.json with OpenAPI schema for POST /chat endpoint request/response
-- [ ] T010 Validate TypeScript builds successfully in Docusaurus dev environment
+- [X] T001 Verify Docusaurus project structure and React setup in frontend directory
+- [X] T002 Create TypeScript configuration for custom React components in Docusaurus src/
+- [X] T003 Set up development environment: .env file with REACT_APP_BACKEND_URL for local dev and production
+- [X] T004 [P] Create src/types/chat.ts with TypeScript interfaces for Query, Response, and ChatMessage
+- [X] T005 [P] Create src/services/chatApi.ts with HTTP client functions (fetch-based, no axios dependency)
+- [X] T006 [P] Create backend/chat_router.py with FastAPI endpoint POST /chat (skeleton, integration in later phases)
+- [X] T007 Configure CORS in backend/app.py for origins (http://localhost:3000, https://mehreen676.github.io)
+- [X] T008 [P] Verify FastAPI backend starts without errors and responds to GET /health endpoint
+- [X] T009 Create contracts/chat-api.json with OpenAPI schema for POST /chat endpoint request/response
+- [X] T010 Validate TypeScript builds successfully in Docusaurus dev environment
 
 ---
 

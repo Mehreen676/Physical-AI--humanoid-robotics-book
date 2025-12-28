@@ -62,7 +62,7 @@ load_dotenv()
 COHERE_API_KEY = os.getenv("COHERE_API_KEY")
 QDRANT_URL = os.getenv("QDRANT_URL")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
-BASE_URL = os.getenv("BASE_URL", "https://mehreen676.github.io/Physical-AI--humanoid-robotics-book")
+BASE_URL = os.getenv("BASE_URL", "https://mehreen676.github.io/Physical-AI--humanoid-robotics-book/")
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "1000"))
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "100"))
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "50"))
@@ -101,7 +101,7 @@ def get_urls(base_url: str = BASE_URL) -> List[str]:
         urls = []
         for url_elem in root.findall('.//loc', {'': 'http://www.sitemaps.org/schemas/sitemap/0.9'}):
             url = url_elem.text
-            if url and not any(skip in url for skip in ['/search', '/api', '/docs']):
+            if url and not any(skip in url for skip in ['/search', '/api']):
                 urls.append(url)
 
         # Fallback to simple parsing if namespace parsing fails
@@ -227,7 +227,7 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVE
     return chunks
 
 
-def embed_chunks(chunks: List[str], model: str = "embed-english-light-v3.0") -> List[List[float]]:
+def embed_chunks(chunks: List[str], model: str = "embed-english-v3.0") -> List[List[float]]:
     """Generate Cohere embeddings for text chunks.
 
     Batches chunks and calls Cohere API with exponential backoff retry
@@ -265,12 +265,18 @@ def embed_chunks(chunks: List[str], model: str = "embed-english-light-v3.0") -> 
                     response = client.embed(
                         texts=batch,
                         model=model,
-                        input_type="default"
+                        input_type="search_document"
                     )
 
-                    embeddings = response.embeddings
-                    all_embeddings.extend(embeddings)
-                    logger.debug(f"Embedded batch {i//BATCH_SIZE + 1}: {len(batch)} chunks")
+                    # Extract embeddings from Cohere ClientV2 response
+                    # response.embeddings.float_ contains the list of embedding vectors
+                    if hasattr(response.embeddings, 'float_') and response.embeddings.float_:
+                        embeddings_list = response.embeddings.float_
+                        for emb in embeddings_list:
+                            all_embeddings.append(list(emb) if not isinstance(emb, list) else emb)
+                        logger.debug(f"Embedded batch {i//BATCH_SIZE + 1}: {len(batch)} chunks, got {len(embeddings_list)} embeddings")
+                    else:
+                        logger.warning(f"No embeddings in response for batch {i//BATCH_SIZE + 1}")
                     break
 
                 except Exception as e:
@@ -349,12 +355,30 @@ def store_in_qdrant(
 
         logger.info(f"Connecting to Qdrant at {QDRANT_URL}")
 
-        # Check if collection exists, create if not
+        # Check if collection exists, recreate if dimensions don't match
         try:
-            client.get_collection(collection_name)
-            logger.info(f"Collection '{collection_name}' exists")
-        except Exception:
-            logger.info(f"Creating collection '{collection_name}'")
+            collection = client.get_collection(collection_name)
+            # Check if dimensions match
+            if hasattr(collection, 'config') and hasattr(collection.config, 'params'):
+                actual_dim = collection.config.params.vectors.size
+                if actual_dim != 1024:
+                    logger.warning(f"Collection exists but has {actual_dim} dims, expected 1024. Recreating...")
+                    client.delete_collection(collection_name)
+                    logger.info(f"Creating collection '{collection_name}' with 1024 dimensions")
+                    client.create_collection(
+                        collection_name=collection_name,
+                        vectors_config=VectorParams(size=1024, distance=Distance.COSINE),
+                    )
+                else:
+                    logger.info(f"Collection '{collection_name}' exists with correct dimensions")
+            else:
+                logger.info(f"Collection '{collection_name}' exists")
+        except Exception as e:
+            logger.info(f"Creating collection '{collection_name}' with 1024 dimensions")
+            try:
+                client.delete_collection(collection_name)
+            except:
+                pass
             client.create_collection(
                 collection_name=collection_name,
                 vectors_config=VectorParams(size=1024, distance=Distance.COSINE),
