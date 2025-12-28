@@ -70,16 +70,16 @@ Core services and utilities needed by all user stories. **MUST COMPLETE BEFORE U
 
 ### Tasks
 
-- [ ] T011 [P] Implement chatApi.sendQuery() function in src/services/chatApi.ts with error handling
-- [ ] T012 [P] Implement chatApi.healthCheck() function to verify backend connection
-- [ ] T013 [P] Create src/services/selectedText.ts with getSelectedText() function to extract highlighted content
-- [ ] T014 [P] Create src/services/selectedText.ts with getSelectionContext() to include surrounding paragraph
-- [ ] T015 [P] Create error handling utility in src/services/errorHandler.ts with user-friendly messages
-- [ ] T016 [P] Create loading state management patterns in src/hooks/useLoadingState.ts
-- [ ] T017 [P] Implement message history hook in src/hooks/useMessageHistory.ts for state management
-- [ ] T018 [P] Test chatApi functions locally with mock backend responses in src/services/__mocks__/chatApi.ts
-- [ ] T019 [P] Test selectedText extraction on sample HTML content
-- [ ] T020 [P] Validate error messages match spec requirements (user-friendly, no stack traces)
+- [X] T011 [P] Implement chatApi.sendQuery() function in src/services/chatApi.ts with error handling
+- [X] T012 [P] Implement chatApi.healthCheck() function to verify backend connection
+- [X] T013 [P] Create src/services/selectedText.ts with getSelectedText() function to extract highlighted content
+- [X] T014 [P] Create src/services/selectedText.ts with getSelectionContext() to include surrounding paragraph
+- [X] T015 [P] Create error handling utility in src/services/errorHandler.ts with user-friendly messages
+- [X] T016 [P] Create loading state management patterns in src/hooks/useLoadingState.ts
+- [X] T017 [P] Implement message history hook in src/hooks/useMessageHistory.ts for state management
+- [X] T018 [P] Test chatApi functions locally with mock backend responses in src/services/__mocks__/chatApi.ts
+- [X] T019 [P] Test selectedText extraction on sample HTML content
+- [X] T020 [P] Validate error messages match spec requirements (user-friendly, no stack traces)
 
 ---
 
