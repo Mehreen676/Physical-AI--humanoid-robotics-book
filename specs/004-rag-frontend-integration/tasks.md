@@ -128,17 +128,17 @@ Responses are clearly displayed with answer text, source URLs, confidence scores
 
 ### Tasks
 
-- [ ] T031 [P] [US2] Create src/components/ChatMessage.tsx component for displaying individual messages
-- [ ] T032 [P] [US2] Implement user message display in ChatMessage (query text, timestamp)
-- [ ] T033 [US2] Implement assistant message display in ChatMessage (answer text with formatting)
-- [ ] T034 [P] [US2] Create src/components/SourcesList.tsx to display sources with URLs
-- [ ] T035 [P] [US2] Make sources clickable links that open in new tab (href to textbook URL)
-- [ ] T036 [US2] Create src/components/MatchedChunks.tsx to display retrieved text snippets
-- [ ] T037 [US2] Display confidence score/similarity metric in response header
-- [ ] T038 [US2] Add response metadata (execution time, match count) in message footer
-- [ ] T039 [US2] Integrate ChatMessage components into ChatWidget message list
-- [ ] T040 [US2] Test ChatMessage rendering with sample RAG responses
-- [ ] T041 [US2] Test source links open correctly and point to right textbook sections
+- [X] T031 [P] [US2] Create src/components/ChatMessage.tsx component for displaying individual messages
+- [X] T032 [P] [US2] Implement user message display in ChatMessage (query text, timestamp)
+- [X] T033 [US2] Implement assistant message display in ChatMessage (answer text with formatting)
+- [X] T034 [P] [US2] Create src/components/SourcesList.tsx to display sources with URLs
+- [X] T035 [P] [US2] Make sources clickable links that open in new tab (href to textbook URL)
+- [X] T036 [US2] Create src/components/MatchedChunks.tsx to display retrieved text snippets
+- [X] T037 [US2] Display confidence score/similarity metric in response header
+- [X] T038 [US2] Add response metadata (execution time, match count) in message footer
+- [X] T039 [US2] Integrate ChatMessage components into ChatWidget message list
+- [X] T040 [US2] Test ChatMessage rendering with sample RAG responses
+- [X] T041 [US2] Test source links open correctly and point to right textbook sections
 
 ---
 
