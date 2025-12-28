@@ -157,13 +157,13 @@ Users can select text in the book, and the selected content is captured and sent
 
 ### Tasks
 
-- [ ] T042 [P] [US5] Add selection listener to book content area detecting text highlights
-- [ ] T043 [US5] Implement UI affordance (button/tooltip) to "Ask about selected text"
-- [ ] T044 [P] [US5] Integrate selectedText utility from Phase 2 into ChatInput component
-- [ ] T045 [US5] When selected text exists, pre-fill or append to query input automatically
-- [ ] T046 [US5] Visually indicate selected text context in ChatInput (highlighted or labeled)
-- [ ] T047 [P] [US5] Pass selected_text parameter in chatApi.sendQuery() request body
-- [ ] T048 [US5] Handle case where user selects text but doesn't submit query (clear on unfocus)
+- [X] T042 [P] [US5] Add selection listener to book content area detecting text highlights
+- [X] T043 [US5] Implement UI affordance (button/tooltip) to "Ask about selected text"
+- [X] T044 [P] [US5] Integrate selectedText utility from Phase 2 into ChatInput component
+- [X] T045 [US5] When selected text exists, pre-fill or append to query input automatically
+- [X] T046 [US5] Visually indicate selected text context in ChatInput (highlighted or labeled)
+- [X] T047 [P] [US5] Pass selected_text parameter in chatApi.sendQuery() request body
+- [X] T048 [US5] Handle case where user selects text but doesn't submit query (clear on unfocus)
 - [ ] T049 [US5] Test selection detection on different textbook page sections
 - [ ] T050 [US5] Test backend receives and processes selected_text parameter correctly
 - [ ] T051 [US5] Verify responses for selected-text queries are contextually relevant
