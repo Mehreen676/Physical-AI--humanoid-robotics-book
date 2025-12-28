@@ -1,110 +1,202 @@
-# Quickstart Guide: RAG Frontend Integration
+# Quick Start Guide: RAG Chat Widget
+
+Get the chat widget running locally in 5 minutes.
+
+---
 
 ## Prerequisites
 
-### System Requirements
-- Python 3.9 or higher
-- Node.js and npm for Docusaurus development
-- Existing backend project with RAG agent
-- Access to OpenAI API (OPENAI_API_KEY in .env)
-- Access to Cohere API (COHERE_API_KEY in .env)
-- Access to Qdrant (QDRANT_URL and QDRANT_API_KEY in .env)
+- **Node.js** 18+ (download from https://nodejs.org)
+- **Python** 3.9+ (download from https://python.org)
+- **Git**
 
-### Environment Setup
-1. Ensure you have both backend and docusaurus_textbook directories
-2. Verify that .env file contains required credentials:
-   - OPENAI_API_KEY
-   - COHERE_API_KEY
-   - QDRANT_URL
-   - QDRANT_API_KEY
-
-## Initial Setup
-
-### 1. Backend Setup (FastAPI)
+Verify installation:
 ```bash
-cd backend
-uv add "fastapi[all]" python-multipart
+node --version  # Should be v18+
+npm --version   # Should be 9+
+python --version  # Should be 3.9+
 ```
 
-### 2. Create the FastAPI service
-Create `api.py` in the backend directory with the RAG agent endpoint
+---
 
-### 3. Docusaurus Setup
-Navigate to the docusaurus_textbook directory:
+## Part 1: Backend Setup (5 minutes)
+
+### Step 1: Setup Python Environment
+
 ```bash
-cd docusaurus_textbook
+cd backend
+
+# Create virtual environment
+python -m venv venv
+
+# Activate it
+# On macOS/Linux:
+source venv/bin/activate
+# On Windows:
+venv\Scripts\activate
+```
+
+### Step 2: Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### Step 3: Configure Environment
+
+```bash
+# Copy example environment file
+cp .env.example .env
+
+# Edit .env with your API keys
+# You need:
+# - QDRANT_URL (Qdrant vector database)
+# - QDRANT_API_KEY
+# - OPENAI_API_KEY or OPENROUTER_API_KEY
+```
+
+### Step 4: Run Backend Server
+
+```bash
+python -m uvicorn app:app --reload --port 8000
+```
+
+**Expected output:**
+```
+INFO:     Application startup complete
+INFO:     Uvicorn running on http://127.0.0.1:8000
+```
+
+Backend is ready at: **http://localhost:8000**
+
+Check health: `curl http://localhost:8000/health`
+
+---
+
+## Part 2: Frontend Setup (5 minutes)
+
+### Step 1: Install Dependencies
+
+```bash
+cd front-end
 npm install
 ```
 
-## Implementation
+This installs Docosaurus, React, TypeScript, and all dependencies.
 
-### 1. Create the FastAPI service (backend/api.py)
-Create a FastAPI application that exposes the RAG agent functionality:
-- POST /ask endpoint that accepts queries
-- Response with answer, sources, and matched chunks
-- Proper error handling and validation
+### Step 2: Start Development Server
 
-### 2. Create the chat component (docusaurus_textbook/src/components/ChatWidget)
-Create a React component that:
-- Appears in the bottom-right corner of all pages
-- Provides a chat interface for user queries
-- Calls the backend API and displays responses
-- Handles loading states and errors
-
-### 3. Integrate the component into Docusaurus
-Add the chat widget to the Docusaurus layout so it appears on all pages.
-
-## Running the Application
-
-### 1. Start the FastAPI backend
 ```bash
-cd backend
-uv run uvicorn api:app --reload --port 8000
+npm start
 ```
 
-### 2. Start the Docusaurus frontend
-```bash
-cd docusaurus_textbook
-npm run start
+**Expected output:**
+```
+[INFO] Docosaurus server started on http://localhost:3000
 ```
 
-### 3. Access the application
-- Frontend: http://localhost:3000
-- Backend API docs: http://localhost:8000/docs
-- Backend endpoint: http://localhost:8000/ask
+Frontend is ready at: **http://localhost:3000**
 
-## Configuration
+---
 
-### Backend Configuration
-- API port: 8000 (default)
-- CORS allowed origins: localhost:3000 (for development)
-- Request timeout: 30 seconds
-- Rate limiting: 10 requests per minute per IP
+## Part 3: Test the Chat Widget
 
-### Frontend Configuration
-- Widget position: Bottom-right corner (20px from bottom/right)
-- Initial state: Closed (user must open)
-- Message history: Stores last 50 messages in localStorage
-- API endpoint: http://localhost:8000/ask (development)
+### In Browser
 
-## Expected Output
-- Chat widget appears on all Docusaurus pages
-- User can open the chat and enter queries
-- Queries are sent to the backend RAG service
-- Responses include answer, sources, and matched chunks
-- Loading states and error handling work appropriately
-- End-to-end functionality works in local development
+1. Open http://localhost:3000
+2. Look for the chat widget on the page
+3. Type a question: "What is humanoid robotics?"
+4. Click Send or press Ctrl+Enter
 
-## Troubleshooting
+**Expected:**
+- Loading state appears
+- Response appears in 1-5 seconds
+- Sources are listed with links
+- Confidence score displayed
 
-### Common Issues
-1. **CORS errors**: Ensure backend allows requests from frontend origin
-2. **API connection**: Verify backend is running on correct port
-3. **Environment variables**: Check that all API keys are properly set
-4. **Docusaurus integration**: Verify component is properly added to layout
+### Test Selected-Text Feature
 
-### Verification Steps
-1. Test backend API directly with curl or API client
-2. Check browser console for frontend errors
-3. Verify all environment variables are set correctly
-4. Test with a simple query to confirm end-to-end functionality
+1. Highlight any text in the textbook
+2. Chat widget should show blue banner: "Selected: ..."
+3. Click "Ask about this"
+4. Query pre-fills with selected text
+5. Submit and get context-aware response
+
+### Check DevTools (F12)
+
+**Network tab:**
+- POST request to `http://localhost:8000/chat`
+- Response status should be 200
+- Response contains: `query`, `response`, `sources`, `confidence`
+
+**Console:**
+- No JavaScript errors
+- Debug logs show (if REACT_APP_DEBUG=true)
+
+---
+
+## Architecture
+
+```
+Frontend (Port 3000)              Backend (Port 8000)
+   React/TypeScript                  FastAPI/Python
+   Docosaurus                        Qdrant + LLM
+         ↓                                ↓
+    localhost:3000  ←HTTP/CORS→  localhost:8000
+```
+
+---
+
+## Common Issues
+
+| Issue | Solution |
+|-------|----------|
+| **"Failed to fetch" error** | Backend not running. Check uvicorn terminal |
+| **CORS error in console** | Backend port is wrong in `.env.local` |
+| **Chat widget not visible** | Check browser console for JS errors (F12) |
+| **Timeout waiting for response** | Backend is slow. Check `/health` endpoint |
+| **Module not found error** | Run `npm install` in front-end directory |
+
+---
+
+## Environment Variables
+
+### Frontend (.env.local)
+
+```bash
+REACT_APP_BACKEND_URL=http://localhost:8000
+REACT_APP_API_TIMEOUT=15000
+REACT_APP_DEBUG=true
+REACT_APP_ENABLE_SELECTED_TEXT=true
+REACT_APP_ENABLE_SYNTHESIS=true
+```
+
+### Backend (.env)
+
+```bash
+QDRANT_URL=your-qdrant-url
+QDRANT_API_KEY=your-key
+OPENAI_API_KEY=your-key
+OPENROUTER_API_KEY=your-key
+LOG_LEVEL=INFO
+```
+
+---
+
+## Ports
+
+| Service | Port | URL |
+|---------|------|-----|
+| Frontend | 3000 | http://localhost:3000 |
+| Backend | 8000 | http://localhost:8000 |
+| Health Check | 8000 | http://localhost:8000/health |
+
+---
+
+## Next Steps
+
+- For deployment: see [DEPLOYMENT_GUIDE.md](../../DEPLOYMENT_GUIDE.md)
+- For demo script: see [DEMO_SCRIPT.md](./DEMO_SCRIPT.md)
+- For architecture: see [README.md](./README.md)
+
+**Status**: Ready to develop! 🚀

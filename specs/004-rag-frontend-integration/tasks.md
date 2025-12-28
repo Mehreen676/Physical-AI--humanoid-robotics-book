@@ -271,17 +271,17 @@ Final touches for production readiness and hackathon demo.
 
 ### Tasks
 
-- [ ] T079 Create README.md in specs/004-rag-frontend-integration/ with architecture overview
-- [ ] T080 Create QUICKSTART.md with setup instructions for local development
-- [ ] T081 Create DEMO_SCRIPT.md with 3-5 example queries for judges to try
+- [X] T079 Create README.md in specs/004-rag-frontend-integration/ with architecture overview
+- [X] T080 Create QUICKSTART.md with setup instructions for local development
+- [X] T081 Create DEMO_SCRIPT.md with 3-5 example queries for judges to try
 - [ ] T082 [P] Update docstrings in all components (ChatWidget, ChatInput, ChatMessage, etc.)
 - [ ] T083 [P] Add TypeScript type hints to all function signatures in services
 - [ ] T084 [P] Test end-to-end flow: highlight → ask → response → see sources
 - [ ] T085 [P] Performance test: measure widget load time (target < 2s)
 - [ ] T086 [P] Performance test: measure query response time (target < 5s)
 - [ ] T087 Optimize any slow operations identified in performance tests
-- [ ] T088 Create deployment guide for moving widget to production
-- [ ] T089 Document how to configure backend URL for different environments
+- [X] T088 Create deployment guide for moving widget to production
+- [X] T089 Document how to configure backend URL for different environments
 - [ ] T090 Final QA: test all user stories together in integrated system
 - [ ] T091 Create screenshot documentation for hackathon judges
 - [ ] T092 Verify all links work (sources, textbook pages, external links)
