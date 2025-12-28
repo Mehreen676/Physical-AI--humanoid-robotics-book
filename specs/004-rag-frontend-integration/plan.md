@@ -1,89 +1,78 @@
-# Implementation Plan: RAG Frontend Integration
+# Implementation Plan: RAG Frontend Integration (Spec 4)
 
 **Branch**: `004-rag-frontend-integration` | **Date**: 2025-12-28 | **Spec**: [specs/004-rag-frontend-integration/spec.md](spec.md)
-
 **Input**: Feature specification from `/specs/004-rag-frontend-integration/spec.md`
+
+**Note**: This template is filled in by the `/sp.plan` command. See `.specify/templates/commands/plan.md` for the execution workflow.
 
 ## Summary
 
-Integrate the existing FastAPI RAG Agent backend (from Spec 005) with the Docusaurus frontend to create an embedded chat widget that allows users to ask questions about the humanoid robotics textbook. The integration enables:
+Integrate FastAPI RAG backend with Docusaurus frontend to create an embedded chat widget for answering questions about the humanoid robotics textbook. The widget will send user queries to the backend, display responses with sources and confidence scores, and support selected-text queries. Implementation uses React for the frontend component and FastAPI for backend integration, with CORS enabled for GitHub Pages deployment.
 
-1. **Embedded Chat Widget** in Docusaurus (floating widget or sidebar)
-2. **Backend API Communication** via FastAPI with CORS enabled
-3. **Real-time Query Processing** using Qdrant vector search + Cohere embeddings
-4. **Selected-Text Support** to query highlighted textbook content
-5. **Deployed Site Functionality** on GitHub Pages with backend on accessible URL
-
-The architecture is lightweight and hackathon-friendly: single React component, existing FastAPI backend, no authentication, free-tier compatible.
-
----
+**Key Architecture Decisions**:
+- Single ChatWidget React component (floating or sidebar) for chat interface
+- Fetch-based HTTP communication (no external dependencies)
+- Real-time response display with loading indicators
+- Selected-text detection using browser Selection API
+- Configurable backend endpoint for local dev and production
+- CORS-enabled FastAPI /chat endpoint for cross-origin requests
 
 ## Technical Context
 
-**Language/Version**: TypeScript 4.9+ (React frontend), Python 3.11+ (FastAPI backend - existing)
+**Language/Version**:
+- Frontend: JavaScript/TypeScript 5.0+ (React 18.x in Docusaurus 3.x)
+- Backend: Python 3.11+ (FastAPI 0.110+)
 
 **Primary Dependencies**:
-- **Frontend**: React 18, Docusaurus 2 (default theme), axios or fetch API for HTTP
-- **Backend**: FastAPI (existing from Spec 005), Cohere SDK, Qdrant Client, OpenAI SDK (optional)
-- **Storage**: Qdrant vector database (existing from Specs 002-005)
-- **Testing**: Jest/React Testing Library (frontend), pytest (backend - existing)
+- Frontend: React 18, TypeScript, Docusaurus 3, CSS Modules
+- Backend: FastAPI 0.110+, Qdrant client, OpenAI SDK, pydantic
 
-**Target Platform**: Web browsers (no mobile optimization), GitHub Pages (frontend), accessible URL for FastAPI backend
+**Storage**: Qdrant vector database (external service) - N/A for frontend
 
-**Project Type**: Web application with separated frontend (Docusaurus) and backend (FastAPI)
+**Testing**:
+- Frontend: Jest, React Testing Library
+- Backend: pytest, FastAPI TestClient
+
+**Target Platform**:
+- Frontend: Web browsers (Chrome, Firefox, Safari, Edge) on desktop and mobile
+- Backend: Linux servers (local dev, Railway/Heroku production)
+
+**Project Type**: Web application (Frontend + Backend)
 
 **Performance Goals**:
-- Chat query response: < 5 seconds (target, may exceed for complex queries)
-- UI interaction response: < 500ms
-- Widget load time: < 2 seconds on page load
-- Chat interface instantiation: < 1 second
+- Query response time: < 5 seconds (SC-009)
+- Widget load time: < 2 seconds
+- Backend call success rate: 95% (SC-001)
 
 **Constraints**:
 - No authentication required (hackathon demo)
-- CORS must allow requests from `https://mehreen676.github.io` (and local dev origins)
-- Simple React component (no heavy dependencies)
-- Docusaurus default theme (minimal styling customization)
-- Free-tier compatible (no paid services)
-- Selected-text feature must work across all textbook pages
+- Free-tier compatible deployment
+- CORS must allow GitHub Pages origin (https://mehreen676.github.io)
+- Simple React component (Docusaurus default theme)
+- Single /chat endpoint
 
 **Scale/Scope**:
-- Single chat widget instance per page
-- Support ~50 concurrent users during hackathon
-- 100+ textbook pages with embedded widget
-
----
+- Single embedded widget (not multi-page)
+- Conversation history in memory (50 messages max)
+- 6 user stories covering query, display, error handling, loading, selected-text, deployed site
 
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-Evaluated against `.specify/memory/constitution.md`:
+### Compliance Validation
 
-### Code Quality & Architecture
-- ✅ **Single responsibility**: Chat widget component focused on UI/UX only
-- ✅ **Minimal dependencies**: Reuse existing FastAPI backend, no new services
-- ✅ **Testable**: Each component (query submission, response display, error handling) independently testable
-- ✅ **No premature optimization**: Straightforward React component, no caching layer added
+| Principle | Status | Notes |
+|-----------|--------|-------|
+| **Technical Accuracy** | ✅ PASS | Spec references FastAPI, Qdrant, OpenAI as per constitution |
+| **Clarity for Audience** | ✅ PASS | Hackathon judges can understand without deep tech knowledge |
+| **Reproducibility** | ✅ PASS | DEMO_SCRIPT.md, QUICKSTART.md, DEPLOYMENT_GUIDE.md provided |
+| **Theory-Practice Integration** | ✅ PASS | RAG integration demonstrates vector search + LLM synthesis |
+| **Standardized Citations** | ✅ PASS | Documentation references official APIs (OpenAI, Qdrant, FastAPI) |
+| **Technology Stack Alignment** | ✅ PASS | Uses Docusaurus, FastAPI, Qdrant as required |
+| **Spec-Driven Development** | ✅ PASS | Full spec.md completed before planning |
 
-### Integration Pattern
-- ✅ **Standard REST API**: FastAPI endpoint with clear request/response schema
-- ✅ **Error handling**: User-friendly messages, graceful degradation
-- ✅ **CORS configuration**: Standard best practices, origin-restricted
-
-### Security & Privacy
-- ✅ **No secrets in code**: API keys in environment variables only
-- ✅ **No authentication needed**: Intentional design choice for hackathon
-- ✅ **Input validation**: Backend already validates queries (from Spec 005)
-- ✅ **No data collection**: Queries not logged beyond debug purposes
-
-### Documentation & Clarity
-- ✅ **Clear API contract**: Documented in `/contracts/chat-api.json`
-- ✅ **Component documentation**: JSDoc comments for all functions
-- ✅ **Integration guide**: Included in `quickstart.md`
-
-**Gate Status**: ✅ **PASS** - No violations. Architecture is sound and aligned with principles.
-
----
+**Gate Result**: ✅ **PASS** - All principles satisfied. Proceed to Phase 0.
 
 ## Project Structure
 
@@ -91,394 +80,206 @@ Evaluated against `.specify/memory/constitution.md`:
 
 ```text
 specs/004-rag-frontend-integration/
-├── spec.md                     # Feature specification
-├── plan.md                     # This file (architecture & design)
-├── research.md                 # Phase 0: Research findings (TBD)
-├── data-model.md               # Phase 1: Data entities & contracts (TBD)
-├── quickstart.md               # Phase 1: Integration guide (TBD)
-├── contracts/
-│   ├── chat-api.json          # Phase 1: OpenAPI schema
-│   └── message-types.ts       # Phase 1: TypeScript interfaces
-└── checklists/
-    └── requirements.md        # Validation checklist (COMPLETED)
+├── spec.md              # Feature specification (COMPLETED)
+├── plan.md              # This file (/sp.plan output)
+├── research.md          # Phase 0 research findings (TO BE GENERATED)
+├── data-model.md        # Phase 1 data entities (TO BE GENERATED)
+├── quickstart.md        # Phase 1 developer guide (COMPLETED)
+├── contracts/           # Phase 1 API contracts (TO BE GENERATED)
+├── checklists/
+│   └── requirements.md  # Spec quality checklist (PASS)
+├── README.md            # Architecture overview (500+ lines)
+├── DEMO_SCRIPT.md       # 6-minute demo guide
+├── DEPLOYMENT_GUIDE.md  # Deployment instructions (2000+ lines)
+└── tasks.md             # Phase 2 output (/sp.tasks - COMPLETED with 136 tasks)
 ```
 
-### Source Code (repository root)
+### Source Code (Web Application - Frontend + Backend)
 
 ```text
-# Frontend (Docusaurus)
-docs/                          # Textbook pages (existing)
-└── [pages already have content]
+frontend/ (Docusaurus React application)
+├── src/
+│   ├── components/
+│   │   ├── ChatWidget.tsx          # Main chat interface component
+│   │   ├── ChatInput.tsx            # User query input form
+│   │   ├── ChatMessage.tsx          # Individual message display
+│   │   ├── SourcesList.tsx          # Source attribution component
+│   │   └── MatchedChunks.tsx        # Retrieved text snippets display
+│   ├── hooks/
+│   │   ├── useMessageHistory.ts     # Chat history state management
+│   │   ├── useLoadingState.ts       # Loading progress tracking
+│   │   └── useSelectedText.ts       # Text selection detection
+│   ├── services/
+│   │   ├── chatApi.ts              # HTTP client for backend
+│   │   ├── errorHandler.ts         # Error processing and messages
+│   │   ├── selectedText.ts         # Text extraction utilities
+│   │   └── __mocks__/
+│   │       └── chatApi.ts          # Mock for testing
+│   ├── types/
+│   │   └── chat.ts                 # TypeScript interfaces (Query, Response, Message)
+│   ├── styles/
+│   │   ├── ChatWidget.module.css
+│   │   ├── ChatInput.module.css
+│   │   ├── ChatMessage.module.css
+│   │   ├── SourcesList.module.css
+│   │   └── MatchedChunks.module.css
+│   └── pages/
+│       └── [chat page or floating widget integration]
+└── tests/
+    ├── unit/              # Component and hook tests
+    ├── integration/       # End-to-end tests
+    └── contract/         # API contract tests
 
-src/                           # NEW: Frontend code (in Docusaurus src/)
-├── components/
-│   └── ChatWidget.tsx         # Main chat widget component
-│   └── ChatMessage.tsx        # Individual message display
-│   └── ChatInput.tsx          # Query input form
-│   └── LoadingIndicator.tsx   # Loading state display
-├── services/
-│   └── chatApi.ts             # Backend API client
-│   └── selectedText.ts        # Selected-text extraction utility
-├── styles/
-│   └── ChatWidget.module.css  # Widget styling
-└── types/
-    └── chat.ts                # TypeScript interfaces
-
-tests/
-├── components/
-│   └── ChatWidget.test.tsx    # Widget integration tests
-├── services/
-│   └── chatApi.test.ts        # API client tests
-└── integration/
-    └── end-to-end.test.ts     # E2E tests on live URL
-
-# Backend (FastAPI - Existing, Enhanced)
-backend/
-├── main.py                    # FastAPI app (existing from Spec 005)
-├── agent.py                   # RAG agent with synthesis (Spec 005 Phase 6)
-├── chat_router.py             # NEW: Chat API endpoint
-└── [existing files from Specs 002-005]
+backend/ (FastAPI application)
+├── main.py              # Application entry point
+├── app.py               # FastAPI app setup with CORS
+├── chat_router.py       # POST /chat endpoint
+├── agent.py             # RAG Agent integration (external)
+├── models.py            # Pydantic request/response models
+└── tests/
+    ├── test_chat_api.py # Endpoint tests
+    └── test_cors.py     # CORS configuration tests
 ```
 
-**Structure Decision**: Web application with separated concerns - Docusaurus/React frontend handles UI/UX, FastAPI backend handles RAG processing. This separation allows independent deployment and evolution.
+**Structure Decision**: Web application with separate frontend (Docusaurus in React) and backend (FastAPI). Frontend is embedded as custom React component in Docusaurus; backend is deployed independently. This matches existing project layout where frontend/ contains Docusaurus app and backend/ contains FastAPI service.
+
+## Complexity Tracking
+
+> **No violations detected** - All constraints satisfied with simple architecture. Complexity justified below.
+
+| Decision | Why Needed | Simpler Alternative Rejected Because |
+|----------|-----------|---------------------------------------|
+| Separate frontend/backend | Frontend deployed to GitHub Pages, backend to Railway/Heroku | Single process insufficient for different hosting requirements |
+| React component architecture | Docusaurus is React-based; natural fit for component library | Direct JS would lose type safety and reusability benefits |
+| Fetch API (no axios) | Lighter dependencies for embedded widget | HTTP library adds unnecessary complexity for simple endpoint |
 
 ---
 
-## Architecture Overview
+## Phase 0: Outline & Research
 
-### High-Level Integration Flow
+**Goal**: Resolve unknowns and validate technology choices
 
-```
-┌─────────────────────────────────────┐
-│  Docusaurus Frontend (GitHub Pages) │
-│                                     │
-│  1. User highlights text or types   │
-│  2. ChatWidget component processes  │
-│  3. Sends query via HTTP to backend │
-│                                     │
-└────────────┬────────────────────────┘
-             │ HTTP POST /chat
-             │ { query, selected_text }
-             ↓
-┌─────────────────────────────────────┐
-│  FastAPI Backend (Deployed URL)     │
-│                                     │
-│  1. Receive query from frontend     │
-│  2. Pass to Agent (Spec 005)        │
-│  3. Agent retrieves from Qdrant     │
-│  4. Agent returns synthesized resp  │
-│  5. Return JSON response to frontend│
-│                                     │
-└────────────┬────────────────────────┘
-             │ HTTP 200 { response, sources, confidence }
-             ↓
-┌─────────────────────────────────────┐
-│  Frontend Display                   │
-│                                     │
-│  1. Parse response JSON             │
-│  2. Render answer with sources      │
-│  3. Show confidence score           │
-│  4. Display matched chunks          │
-│                                     │
-└─────────────────────────────────────┘
-```
+### Research Tasks
 
-### Component Architecture
+Based on the architecture decisions provided, no critical unknowns remain. However, the following areas will be researched to ensure best practices:
 
-**Frontend Components**:
-- **ChatWidget.tsx** (parent): Manages state, handles API calls, orchestrates layout
-- **ChatMessage.tsx**: Renders individual messages (user query, assistant response)
-- **ChatInput.tsx**: Input form for new queries, supports pre-filling from selected text
-- **LoadingIndicator.tsx**: Shows progress during API requests
-- **Selected-Text Service**: Extracts highlighted text, provides to ChatInput
+1. **Browser Selection API for text extraction**
+   - Compatibility across browsers (Chrome, Firefox, Safari, Edge)
+   - Performance implications of selection listeners
+   - Mobile device support for selected-text feature
 
-**Backend Endpoints**:
-- **POST /chat**: Accept query, return response
-  - Request: `{ query: string, selected_text?: string, k?: number }`
-  - Response: `{ query, response, sources, confidence, execution_time_ms, status }`
-- Uses existing `run_query()` from agent.py (Spec 005)
+2. **CORS configuration patterns**
+   - Best practices for FastAPI CORS middleware
+   - GitHub Pages origin configuration
+   - Security considerations for public endpoints
 
-### Data Flow
+3. **Real-time response handling**
+   - Streaming responses vs. fetch completion
+   - Loading state patterns in React
+   - Network timeout handling
 
-1. **User Action**: Highlight text in book OR type in chat input
-2. **Frontend Processing**:
-   - Extract selected text (if any)
-   - Combine with user-typed query
-   - Show loading indicator
-3. **API Call**: POST to `/chat` endpoint with structured request
-4. **Backend Processing**:
-   - Receive query from frontend
-   - Pass to `agent.run_query()` (existing, from Spec 005)
-   - Get back: response text + sources + confidence
-   - Return JSON response
-5. **Frontend Display**:
-   - Parse response
-   - Render message with sources
-   - Hide loading indicator
-   - Scroll to latest message
+4. **TypeScript in Docusaurus**
+   - Custom component compilation
+   - Type safety with React 18
+   - Testing strategy for components
 
-### Error Handling
+### Research Deliverables
 
-**Frontend Error Cases**:
-- Network error (timeout, no connection) → "Unable to connect to backend. Please try again."
-- API error (4xx, 5xx) → Display backend error message or generic "An error occurred"
-- Malformed response → "Unexpected response format. Please try again."
-- Empty result → "No relevant content found in the textbook for your query."
+Create `research.md` documenting:
+- Browser Selection API findings (Chrome 63+, Firefox 53+, Safari 11+, Edge 79+ all supported)
+- CORS best practices (FastAPI documentation, GitHub Pages origin handling)
+- Real-time patterns for RAG responses (streaming via fetch EventSource vs. standard response)
+- TypeScript compilation in Docusaurus (works with tsconfig.json in src/)
 
-**Backend Error Cases** (handled by existing agent.py):
-- Cohere API rate limit → Exponential backoff, retry
-- Qdrant connection error → Return error response to frontend
-- Invalid query → Return validation error message
-
-### CORS Configuration
-
-**FastAPI Backend** must configure CORS to allow:
-- **Origin**: `https://mehreen676.github.io` (production)
-- **Origin**: `http://localhost:3000`, `http://localhost:8000` (development)
-- **Methods**: GET, POST, OPTIONS
-- **Headers**: Content-Type, Authorization (optional)
-- **Credentials**: False (no authentication)
+**Output**: `specs/004-rag-frontend-integration/research.md`
 
 ---
 
-## Key Design Decisions
+## Phase 1: Design & Contracts
 
-### 1. Single Chat Widget Component
-**Decision**: One React component handles all chat UI
-- **Rationale**: Simplicity, easy to embed in any Docusaurus page, minimal dependency footprint
-- **Alternatives**: Complex chat library (react-chat-ui, Rasa), full chat application
-- **Impact**: Faster development, easier testing, lighter build
-
-### 2. Backend API: Single `/chat` Endpoint
-**Decision**: One POST endpoint handles all query processing
-- **Rationale**: Clear separation of concerns, easy to understand, aligns with existing agent.py
-- **Alternatives**: Multiple endpoints (/query, /synthesis, /retrieved-chunks)
-- **Impact**: Simpler deployment, easier CORS configuration, all logic in one place
-
-### 3. Selected-Text Support via Context Parameter
-**Decision**: Pass `selected_text` as optional parameter to backend
-- **Rationale**: Backend (Spec 005) already supports query encoding, can incorporate context
-- **Alternatives**: Modify query string to include selected text
-- **Impact**: Cleaner API, better for future multi-turn conversations
-
-### 4. No Authentication / No User Sessions
-**Decision**: Hackathon demo without auth
-- **Rationale**: Fastest to implement, judges don't need to log in
-- **Alternatives**: OAuth2, JWT tokens, API keys
-- **Impact**: Reduces complexity, enables anonymous queries, works on GitHub Pages
-
-### 5. Floating Widget as Default
-**Decision**: Floating chat widget (not full-page chat)
-- **Rationale**: Less intrusive, works on all pages without redesign
-- **Alternatives**: Full-page chat route, embedded in sidebar
-- **Impact**: Easier integration, better UX for judges, widget-like affordance
-
-### 6. Docusaurus Theme Integration
-**Decision**: Use Docusaurus default theme, minimal custom styling
-- **Rationale**: No theme customization needed, works out-of-box
-- **Alternatives**: Custom theme, Tailwind CSS styling
-- **Impact**: Faster implementation, consistent with book design
-
----
-
-## Phase 0: Research (To Be Completed)
-
-Research tasks to resolve during implementation:
-
-1. **React/TypeScript setup in Docusaurus** - How to add custom components to Docusaurus default theme
-2. **Selected-text extraction** - Best practices for capturing highlighted text across different browsers
-3. **CORS configuration in FastAPI** - Specific configuration for production origin
-4. **HTTP client choice** - Fetch API vs. axios for simple requests (recommend: Fetch API - no dependency)
-5. **Error handling patterns** - Best practices for network errors in React apps
-6. **Keyboard shortcuts** - Should chat widget support keyboard access? (Ctrl+K to focus input?)
-
-**Output**: `research.md` with findings and decisions
-
----
-
-## Phase 1: Design & Contracts (To Be Completed)
+**Prerequisites**: Constitution Check PASS ✅, Research completed
 
 ### 1.1 Data Model
-**File**: `data-model.md`
 
-**Entities**:
-- **ChatMessage**: `{ id, role (user|assistant), content, timestamp, sources?, confidence? }`
-- **QueryRequest**: `{ query, selected_text?, k }`
-- **QueryResponse**: `{ query, response, sources, confidence, execution_time_ms, status }`
+**Entity: Query Request**
+- Fields: query (string, 3-5000 chars), selected_text (optional string), k (number, 1-20, default 5)
+- Validation: Query length enforced by frontend, backend echoes validation
+
+**Entity: RAG Response**
+- Fields: response (string), sources (Source[]), confidence (0-1), execution_time_ms (number)
+- Validation: All fields required from backend
+
+**Entity: Source**
+- Fields: url (string), snippet (string, first 200 chars), similarity_score (0-1), chunk_position (optional)
+
+**Entity: ChatMessage**
+- Fields: id (string), role ('user' | 'assistant'), content (string), timestamp (Date), sources?, confidence?, execution_time_ms?
+- Relationships: Messages form conversation history (max 50)
+
+**Output**: `specs/004-rag-frontend-integration/data-model.md`
 
 ### 1.2 API Contracts
-**File**: `contracts/chat-api.json` (OpenAPI schema)
 
-**Endpoint**: `POST /chat`
-- **Request Body**:
-  ```json
-  {
-    "query": "What is humanoid robotics?",
-    "selected_text": "optional highlighted text",
-    "k": 5
-  }
-  ```
-- **Response** (200 OK):
-  ```json
-  {
-    "query": "What is humanoid robotics?",
-    "response": "Based on the textbook, here's what I found:\n...",
-    "sources": [
-      {
-        "url": "https://example.com/intro",
-        "snippet": "Welcome to the Physical AI & Humanoid Robotics textbook..."
-      }
-    ],
-    "confidence": 0.578,
-    "execution_time_ms": 4500,
-    "status": "success"
-  }
-  ```
+**Endpoint: POST /chat**
 
-### 1.3 TypeScript Interfaces
-**File**: `contracts/message-types.ts`
-
-```typescript
-interface QueryRequest {
-  query: string;
-  selected_text?: string;
-  k?: number;
-}
-
-interface Source {
-  url: string;
-  snippet: string;
-}
-
-interface QueryResponse {
-  query: string;
-  response: string;
-  sources: Source[];
-  confidence: number;
-  execution_time_ms: number;
-  status: "success" | "error" | "no_results";
-}
-
-interface ChatMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  timestamp: Date;
-  sources?: Source[];
-  confidence?: number;
+Request:
+```json
+{
+  "query": "What is humanoid robotics?",
+  "selected_text": "optional context text",
+  "k": 5
 }
 ```
 
-### 1.4 Component Interface
-**File**: `quickstart.md`
+Response (200):
+```json
+{
+  "response": "Generated answer from RAG agent",
+  "sources": [
+    {
+      "url": "https://example.com/page",
+      "snippet": "Relevant text chunk...",
+      "similarity_score": 0.92
+    }
+  ],
+  "confidence": 0.85,
+  "execution_time_ms": 1234
+}
+```
 
-**Integration Steps**:
-1. Copy `ChatWidget.tsx` to Docusaurus `src/components/`
-2. Import widget in desired pages: `<ChatWidget backendUrl="..." />`
-3. Configure backend URL in environment: `REACT_APP_BACKEND_URL`
-4. Enable CORS on FastAPI backend
-5. Test on local dev, then deploy to GitHub Pages
+Error Response (400, 500):
+```json
+{
+  "detail": "Error message describing the issue"
+}
+```
 
----
+**Output**: `specs/004-rag-frontend-integration/contracts/chat-api.json` (OpenAPI 3.0)
 
-## Phase 2: Implementation (Tasks to Be Defined)
+### 1.3 Developer Quickstart
 
-Tasks will be generated by `/sp.tasks` command after plan approval. Expected task groups:
+Update `quickstart.md` to include:
+- Dependency installation (frontend: npm, backend: pip)
+- Environment configuration (.env files)
+- Running backend with FastAPI (uvicorn)
+- Running frontend with Docusaurus (npm start)
+- Testing with curl/Postman
+- Deployment steps (GitHub Pages, Railway/Heroku)
 
-1. **Frontend Setup** (4-5 tasks)
-   - Setup TypeScript environment in Docusaurus
-   - Create ChatWidget component
-   - Create message display components
-   - Implement selected-text extraction
+**Output**: `specs/004-rag-frontend-integration/quickstart.md` (already exists, reference in tasks)
 
-2. **API Integration** (3-4 tasks)
-   - Create chatApi service (HTTP client)
-   - Implement request/response handling
-   - Add error handling and retry logic
-   - Test API contract
+### 1.4 Agent Context Update
 
-3. **Backend Enhancement** (2-3 tasks)
-   - Add `/chat` endpoint to FastAPI
-   - Integrate with agent.py
-   - Configure CORS for frontend origin
-   - Test backend endpoint
-
-4. **Testing & Deployment** (3-4 tasks)
-   - Unit tests for components
-   - Integration tests for API calls
-   - E2E tests on live site
-   - Deploy frontend to GitHub Pages, backend to accessible URL
-
-5. **Demo & Documentation** (2-3 tasks)
-   - Prepare demo queries
-   - Create usage guide
-   - Document integration steps
+Run update-agent-context script to add discovered technologies and patterns to agent memory.
 
 ---
 
-## Assumptions & Decisions Documented
+## Phase 2: Task Breakdown (Next Step)
 
-1. **FastAPI backend available**: Spec 005 provides complete RAG Agent with Qdrant + Cohere + OpenAI
-2. **GitHub Pages deployment**: Docusaurus frontend already deployed to GitHub Pages
-3. **Backend URL provided**: Backend (FastAPI) deployed to accessible URL with CORS enabled
-4. **No user database**: Queries not stored; stateless API
-5. **Selected text is optional**: Query can be submitted with or without highlighted text context
-6. **Floating widget is default**: Can be adapted to sidebar or full-page later
-7. **Real-time display** (not streaming): Response displayed as complete message, not streamed tokens
+The following phase generates `tasks.md` via `/sp.tasks` command with:
+- 7 implementation phases (Setup, Foundation, User Stories 1-6)
+- 92 tasks total with prioritization (P1/P2)
+- Dependency ordering and parallel execution markers
+- Test-driven development approach
 
----
-
-## Dependencies & Integration Points
-
-### Frontend Dependencies
-- **Docusaurus 2**: Already deployed, provides default theme
-- **React 18**: Bundled with Docusaurus
-- **TypeScript**: Docusaurus supports out-of-box
-- **Fetch API**: Built-in, no npm package needed
-
-### Backend Dependencies
-- **FastAPI**: Existing from Spec 005
-- **Cohere SDK**: Existing from Spec 005
-- **Qdrant Client**: Existing from Spec 005
-- **OpenAI SDK**: Optional, used in Spec 005 Phase 6
-
-### External Services
-- **Cohere API**: Query embeddings (existing key)
-- **Qdrant Cloud**: Vector database (existing collection)
-- **OpenAI API**: Optional response synthesis (existing key from Phase 6)
-
----
-
-## Success Metrics
-
-From spec.md, integration is successful when:
-
-1. ✅ Frontend (Docusaurus) connects to FastAPI backend (100% connection success)
-2. ✅ Chat interface loads in < 2 seconds
-3. ✅ Query processing completes in < 5 seconds (end-to-end)
-4. ✅ Sources displayed with responses (100% of responses show sources)
-5. ✅ Selected-text queries work (highlight → ask → correct answer)
-6. ✅ Works on deployed GitHub Pages site
-7. ✅ Error messages user-friendly (no stack traces)
-8. ✅ CORS properly configured (requests from deployed origin accepted)
-9. ✅ Hackathon demo ready (judges can test without setup)
-10. ✅ No authentication required (open access)
-
----
-
-## Next Phase
-
-After phase 1 design approval, `/sp.tasks` will generate detailed task breakdown for:
-- Frontend component implementation (React/TypeScript)
-- Backend endpoint integration (FastAPI)
-- Testing & deployment workflows
-- Demo preparation
-
-**Estimated scope**: 15-20 implementation tasks, 2-3 weeks for full feature
-
----
-
-**Branch**: `004-rag-frontend-integration`
-**Plan Status**: Ready for Phase 0 research and Phase 1 design
-**Created**: 2025-12-28
-**Next Command**: `/sp.tasks 004-rag-frontend-integration` (after Phase 1 approval)
+**Output**: `specs/004-rag-frontend-integration/tasks.md` (already generated)
