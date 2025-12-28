@@ -70,7 +70,9 @@
       "Bash(powershell -NoProfile -Command:*)",
       "Bash(git checkout:*)",
       "Bash(timeout 5 python:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(ConvertFrom-Json)",
+      "Bash(ConvertTo-Json -Depth 10)"
     ]
   }
 }
