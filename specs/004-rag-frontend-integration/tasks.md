@@ -99,16 +99,16 @@ Users can type questions into a chat input field and submit them to the RAG back
 
 ### Tasks
 
-- [ ] T021 [P] [US1] Create src/components/ChatInput.tsx component with text input form
-- [ ] T022 [P] [US1] Implement form submission handler in ChatInput to call chatApi.sendQuery()
-- [ ] T023 [US1] Implement input validation in ChatInput (3-5000 char range, trim whitespace)
-- [ ] T024 [US1] Add placeholder text and submit button to ChatInput component
-- [ ] T025 [P] [US1] Create src/components/ChatWidget.tsx parent component managing overall state
-- [ ] T026 [US1] Implement state management in ChatWidget for loading, error, and messages
-- [ ] T027 [US1] Connect ChatInput to ChatWidget: pass query to parent state on submission
-- [ ] T028 [US1] Integrate loading state from Phase 2 hook into ChatWidget during query processing
-- [ ] T029 [US1] Test ChatInput component in isolation (typing, validation, submission)
-- [ ] T030 [US1] Test ChatWidget query submission flow end-to-end
+- [X] T021 [P] [US1] Create src/components/ChatInput.tsx component with text input form
+- [X] T022 [P] [US1] Implement form submission handler in ChatInput to call chatApi.sendQuery()
+- [X] T023 [US1] Implement input validation in ChatInput (3-5000 char range, trim whitespace)
+- [X] T024 [US1] Add placeholder text and submit button to ChatInput component
+- [X] T025 [P] [US1] Create src/components/ChatWidget.tsx parent component managing overall state
+- [X] T026 [US1] Implement state management in ChatWidget for loading, error, and messages
+- [X] T027 [US1] Connect ChatInput to ChatWidget: pass query to parent state on submission
+- [X] T028 [US1] Integrate loading state from Phase 2 hook into ChatWidget during query processing
+- [X] T029 [US1] Test ChatInput component in isolation (typing, validation, submission)
+- [X] T030 [US1] Test ChatWidget query submission flow end-to-end
 
 ---
 
