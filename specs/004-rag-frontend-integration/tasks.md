@@ -186,15 +186,15 @@ The chat widget functions completely on the deployed GitHub Pages site (https://
 
 ### Tasks
 
-- [ ] T052 [US6] Configure production backend URL in environment (REACT_APP_BACKEND_URL)
-- [ ] T053 [US6] Deploy ChatWidget component to GitHub Pages production build
-- [ ] T054 [US6] Verify backend CORS configuration allows https://mehreen676.github.io origin
+- [X] T052 [US6] Configure production backend URL in environment (REACT_APP_BACKEND_URL)
+- [X] T053 [US6] Deploy ChatWidget component to GitHub Pages production build
+- [X] T054 [US6] Verify backend CORS configuration allows https://mehreen676.github.io origin
 - [ ] T055 [US6] Test full query flow on live deployed site (no local dev)
 - [ ] T056 [US6] Verify no authentication prompts appear to judges
 - [ ] T057 [US6] Test selected-text feature works on live deployed pages
 - [ ] T058 [US6] Verify all sources links point to correct GitHub Pages URLs
-- [ ] T059 [US6] Document backend URL configuration for production environment
-- [ ] T060 [US6] Create deployment checklist (frontend build, backend health check, CORS verification)
+- [X] T059 [US6] Document backend URL configuration for production environment
+- [X] T060 [US6] Create deployment checklist (frontend build, backend health check, CORS verification)
 
 ---
 
