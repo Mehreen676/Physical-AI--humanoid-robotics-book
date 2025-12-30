@@ -1,0 +1,459 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "BookRAGAgent API",
+    "description": "REST API for hallucination-free RAG chatbot backend",
+    "version": "1.0.0",
+    "contact": {
+      "name": "BookRAGAgent Team"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000",
+      "description": "Local development"
+    },
+    {
+      "url": "https://api.example.com",
+      "description": "Production"
+    }
+  ],
+  "paths": {
+    "/chat": {
+      "post": {
+        "summary": "Submit question to RAG chatbot",
+        "description": "Ask a question about the book. System retrieves relevant chunks and synthesizes a grounded answer.",
+        "operationId": "postChat",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              },
+              "example": {
+                "question": "What is the main focus of Chapter 3?",
+                "session_id": "550e8400-e29b-41d4-a716-446655440000",
+                "selected_text": null
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response with grounded answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatResponse"
+                },
+                "example": {
+                  "answer": "Chapter 3 focuses on neural network fundamentals, including perceptrons, activation functions, and backpropagation algorithms.",
+                  "citations": [
+                    {
+                      "section": "Chapter 3: Neural Networks",
+                      "url": "https://book.example.com/chapter-3"
+                    }
+                  ],
+                  "retrieved_chunks": [
+                    {
+                      "text": "Chapter 3 provides a comprehensive introduction to neural networks, covering the fundamental concepts...",
+                      "metadata": {
+                        "url": "https://book.example.com/chapter-3",
+                        "section": "Chapter 3: Neural Networks",
+                        "chunk_id": "chunk-00042",
+                        "position": 1,
+                        "embedding_score": 0.8754
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (missing required fields, malformed JSON)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "Invalid request",
+                  "message": "Field 'question' is required and must be a string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error (service unavailable, internal error)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "Service unavailable",
+                  "message": "Unable to process request. Please try again."
+                }
+              }
+            }
+          }
+        },
+        "tags": ["Chat"]
+      }
+    },
+    "/sessions": {
+      "post": {
+        "summary": "Create a new conversation session",
+        "description": "Initialize a new session for multi-turn conversations",
+        "operationId": "postSessions",
+        "responses": {
+          "201": {
+            "description": "Session created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionCreateResponse"
+                },
+                "example": {
+                  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+                  "created_at": "2025-12-30T12:34:56Z"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": ["Sessions"]
+      }
+    },
+    "/sessions/{session_id}": {
+      "get": {
+        "summary": "Retrieve session conversation history",
+        "description": "Get all messages in a session, ordered by creation time",
+        "operationId": "getSession",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "description": "UUID of the session",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionGetResponse"
+                },
+                "example": {
+                  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+                  "messages": [
+                    {
+                      "role": "user",
+                      "content": "What is Chapter 3 about?",
+                      "created_at": "2025-12-30T12:34:00Z"
+                    },
+                    {
+                      "role": "assistant",
+                      "content": "{\"answer\": \"Chapter 3 focuses on neural networks...\", \"citations\": [...], \"retrieved_chunks\": [...]}",
+                      "created_at": "2025-12-30T12:34:05Z"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "Not found",
+                  "message": "Session '550e8400-e29b-41d4-a716-446655440000' does not exist"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": ["Sessions"]
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health check endpoint",
+        "description": "Check if the API and its dependencies are healthy",
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "description": "System is healthy or degraded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                },
+                "example": {
+                  "status": "healthy",
+                  "services": {
+                    "qdrant": "ok",
+                    "database": "ok",
+                    "openrouter": "ok"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable (critical services down)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                },
+                "example": {
+                  "status": "unhealthy",
+                  "services": {
+                    "qdrant": "error: connection refused",
+                    "database": "ok",
+                    "openrouter": "ok"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": ["Health"]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ChatRequest": {
+        "type": "object",
+        "required": ["question", "session_id"],
+        "properties": {
+          "question": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "User's natural language question about the book"
+          },
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID of the conversation session"
+          },
+          "selected_text": {
+            "type": "string",
+            "nullable": true,
+            "description": "Optional: restrict answer to this passage only (passage_id or text range)"
+          }
+        }
+      },
+      "Citation": {
+        "type": "object",
+        "required": ["section", "url"],
+        "properties": {
+          "section": {
+            "type": "string",
+            "description": "Book section name (e.g., 'Chapter 3: Neural Networks')"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL to the source in the book"
+          }
+        }
+      },
+      "ChunkMetadata": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "section": {
+            "type": "string"
+          },
+          "chunk_id": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer"
+          },
+          "embedding_score": {
+            "type": "number",
+            "format": "float",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      },
+      "RetrievedChunk": {
+        "type": "object",
+        "required": ["text", "metadata"],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "The chunk text (excerpt from book)"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ChunkMetadata"
+          }
+        }
+      },
+      "ChatResponse": {
+        "type": "object",
+        "required": ["answer", "citations", "retrieved_chunks"],
+        "properties": {
+          "answer": {
+            "type": "string",
+            "description": "Grounded answer synthesized from book content"
+          },
+          "citations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            },
+            "description": "Sources for the answer"
+          },
+          "retrieved_chunks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RetrievedChunk"
+            },
+            "description": "All chunks used in answer synthesis"
+          }
+        }
+      },
+      "SessionCreateResponse": {
+        "type": "object",
+        "required": ["session_id", "created_at"],
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ChatMessage": {
+        "type": "object",
+        "required": ["role", "content", "created_at"],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["user", "assistant"]
+          },
+          "content": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SessionGetResponse": {
+        "type": "object",
+        "required": ["session_id", "messages"],
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            }
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "required": ["status", "services"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["healthy", "degraded", "unhealthy"]
+          },
+          "services": {
+            "type": "object",
+            "properties": {
+              "qdrant": {
+                "type": "string"
+              },
+              "database": {
+                "type": "string"
+              },
+              "openrouter": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": ["error", "message"],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Error type (e.g., 'Invalid request', 'Service unavailable')"
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable error message"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Chat",
+      "description": "Chat endpoints for RAG queries"
+    },
+    {
+      "name": "Sessions",
+      "description": "Session management endpoints"
+    },
+    {
+      "name": "Health",
+      "description": "Service health check"
+    }
+  ]
+}

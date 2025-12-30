@@ -1,13 +1,66 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "backend"
-version = "0.1.0"
-description = "Add your description here"
+name = "book-rag-agent"
+version = "1.0.0"
+description = "Hallucination-free RAG chatbot backend for book content"
 readme = "README.md"
-requires-python = ">=3.13"
-dependencies = [
-    "beautifulsoup4>=4.14.3",
-    "cohere>=5.20.1",
-    "python-dotenv>=1.2.1",
-    "qdrant-client>=1.16.2",
-    "requests>=2.32.5",
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "BookRAGAgent Team"}
 ]
+
+dependencies = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.24.0",
+    "openai>=1.0.0",
+    "qdrant-client>=1.7.0,<2.0.0",
+    "psycopg2-binary>=2.9.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "httpx>=0.24.0",
+    "aiohttp>=3.8.0",
+    "sqlalchemy>=2.0.0",
+    "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.7.0",
+]
+
+[tool.black]
+line-length = 100
+target-version = ['py311']
+include = '\.pyi?$'
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+python_files = "test_*.py"
+addopts = "--strict-markers --tb=short"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["backend"]
+omit = ["*/tests/*"]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false

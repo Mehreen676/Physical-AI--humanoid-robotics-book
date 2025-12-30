@@ -72,7 +72,20 @@
       "Bash(timeout 5 python:*)",
       "Bash(npx tsc:*)",
       "Bash(ConvertFrom-Json)",
-      "Bash(ConvertTo-Json -Depth 10)"
+      "Bash(ConvertTo-Json -Depth 10)",
+      "Bash(.specify/scripts/bash/create-phr.sh:*)",
+      "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File .specify/scripts/powershell/create-new-feature.ps1:*)",
+      "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File:*)",
+      "Bash(find:*)",
+      "Bash(for dir in agent rag storage models api services)",
+      "Bash(do touch $dir/__init__.py)",
+      "Bash(done)",
+      "Bash(uv pip install:*)",
+      "Bash(pkill:*)",
+      "Bash(curl:*)",
+      "Bash(python -m json.tool:*)",
+      "Bash(xargs:*)",
+      "Bash(python3:*)"
     ]
   }
 }
