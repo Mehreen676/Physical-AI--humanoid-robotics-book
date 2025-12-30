@@ -8,9 +8,9 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import PointStruct
 import logging
 from typing import List, Dict, Any, Optional
-from backend.config import settings
-from backend.agent.skills import Skill
-from backend.services.embeddings import EmbeddingsService
+from config import settings
+from agent.skills import Skill
+from services.embeddings import EmbeddingsService
 
 logger = logging.getLogger(__name__)
 

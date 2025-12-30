@@ -4,16 +4,16 @@ API routes for BookRAGAgent.
 Main FastAPI router with endpoints for chat, sessions, and health checks.
 """
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Request
 from typing import Optional
 import logging
 from uuid import UUID
 
-from backend.models.schemas import (
+from models.schemas import (
     ChatRequest, ChatResponse, SessionCreateResponse,
     SessionGetResponse, HealthResponse, ErrorResponse
 )
-from backend.utils.errors import (
+from utils.errors import (
     RAGError, InvalidInputException, SessionNotFoundException,
     get_http_status_code, build_error_response
 )
@@ -21,20 +21,31 @@ from backend.utils.errors import (
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# These will be injected by the application
-_rag_agent = None
-_session_manager = None
-_qdrant_retriever = None
-_openrouter_client = None
+# Dependencies will be stored in app.state by the startup event
+# This avoids issues with module reloading resetting global variables
 
+def get_rag_agent(request):
+    """Get RAG agent from app state."""
+    return getattr(request.app.state, 'rag_agent', None)
 
-def set_dependencies(rag_agent, session_manager, qdrant_retriever, openrouter_client):
-    """Set up dependencies for routes."""
-    global _rag_agent, _session_manager, _qdrant_retriever, _openrouter_client
-    _rag_agent = rag_agent
-    _session_manager = session_manager
-    _qdrant_retriever = qdrant_retriever
-    _openrouter_client = openrouter_client
+def get_session_manager(request):
+    """Get session manager from app state."""
+    return getattr(request.app.state, 'session_manager', None)
+
+def get_qdrant_retriever(request):
+    """Get Qdrant retriever from app state."""
+    return getattr(request.app.state, 'qdrant_retriever', None)
+
+def get_openrouter_client(request):
+    """Get OpenRouter client from app state."""
+    return getattr(request.app.state, 'openrouter_client', None)
+
+def set_dependencies(app, rag_agent, session_manager, qdrant_retriever, openrouter_client):
+    """Set up dependencies in app.state."""
+    app.state.rag_agent = rag_agent
+    app.state.session_manager = session_manager
+    app.state.qdrant_retriever = qdrant_retriever
+    app.state.openrouter_client = openrouter_client
 
 
 @router.post("/chat", response_model=ChatResponse, status_code=200)
@@ -45,19 +56,22 @@ async def chat(request: ChatRequest) -> ChatResponse:
     Retrieves relevant book content and returns a grounded answer with citations.
     """
     try:
-        if not _rag_agent:
+        rag_agent = get_rag_agent(request)
+        session_manager = get_session_manager(request)
+
+        if not rag_agent:
             raise RuntimeError("RAG agent not initialized")
 
         logger.info(f"Chat request from session {request.session_id}")
 
         # Execute RAG pipeline
-        response = await _rag_agent.execute(request)
+        response = await rag_agent.execute(request)
 
         # Store messages in session
-        if _session_manager:
+        if session_manager:
             try:
                 # Store user question
-                _session_manager.add_message(
+                session_manager.add_message(
                     session_id=request.session_id,
                     role="user",
                     content=request.question,
@@ -66,7 +80,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
                 # Store assistant response
                 import json
-                _session_manager.add_message(
+                session_manager.add_message(
                     session_id=request.session_id,
                     role="assistant",
                     content=json.dumps({
@@ -98,18 +112,20 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
 
 @router.post("/sessions", response_model=SessionCreateResponse, status_code=201)
-async def create_session() -> SessionCreateResponse:
+async def create_session(request: Request) -> SessionCreateResponse:
     """
     Create a new conversation session.
 
     Returns a session_id that should be used in subsequent /chat requests.
     """
     try:
-        if not _session_manager:
+        session_manager = get_session_manager(request)
+
+        if not session_manager:
             raise RuntimeError("Session manager not initialized")
 
         logger.info("Creating new session")
-        session_id = _session_manager.create_session()
+        session_id = session_manager.create_session()
 
         return SessionCreateResponse(
             session_id=UUID(session_id),
@@ -128,26 +144,28 @@ async def create_session() -> SessionCreateResponse:
 
 
 @router.get("/sessions/{session_id}", response_model=SessionGetResponse, status_code=200)
-async def get_session(session_id: UUID) -> SessionGetResponse:
+async def get_session(session_id: UUID, request: Request) -> SessionGetResponse:
     """
     Retrieve conversation history for a session.
 
     Returns all messages in the session ordered by creation time.
     """
     try:
-        if not _session_manager:
+        session_manager = get_session_manager(request)
+
+        if not session_manager:
             raise RuntimeError("Session manager not initialized")
 
         logger.info(f"Retrieving session {session_id}")
 
-        session = _session_manager.get_session(session_id)
+        session = session_manager.get_session(session_id)
         if not session:
             raise SessionNotFoundException(str(session_id))
 
-        messages = _session_manager.get_all_messages(session_id)
+        messages = session_manager.get_all_messages(session_id)
 
         # Convert to response format
-        from backend.models.schemas import ChatMessage
+        from models.schemas import ChatMessage
         chat_messages = [
             ChatMessage(
                 role=msg.role,
@@ -180,7 +198,7 @@ async def get_session(session_id: UUID) -> SessionGetResponse:
 
 
 @router.get("/health", response_model=HealthResponse, status_code=200)
-async def health_check() -> HealthResponse:
+async def health_check(request: Request) -> HealthResponse:
     """
     Health check endpoint.
 
@@ -188,23 +206,26 @@ async def health_check() -> HealthResponse:
     """
     try:
         services = {}
+        qdrant_retriever = get_qdrant_retriever(request)
+        openrouter_client = get_openrouter_client(request)
+        session_manager = get_session_manager(request)
 
         # Check Qdrant
-        if _qdrant_retriever:
-            qdrant_health = await _qdrant_retriever.health_check()
+        if qdrant_retriever:
+            qdrant_health = await qdrant_retriever.health_check()
             services["qdrant"] = qdrant_health.get("status", "unknown")
         else:
             services["qdrant"] = "not_initialized"
 
         # Check OpenRouter
-        if _openrouter_client:
-            router_health = await _openrouter_client.health_check()
+        if openrouter_client:
+            router_health = await openrouter_client.health_check()
             services["openrouter"] = router_health.get("status", "unknown")
         else:
             services["openrouter"] = "not_initialized"
 
         # Check database (basic check)
-        if _session_manager:
+        if session_manager:
             try:
                 services["database"] = "ok"
             except:

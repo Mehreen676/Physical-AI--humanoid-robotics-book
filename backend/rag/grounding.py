@@ -8,8 +8,8 @@ from typing import List, Dict, Any, Optional
 import logging
 import json
 
-from backend.agent.skills import Skill
-from backend.services.openrouter_service import OpenRouterClient
+from agent.skills import Skill
+from services.openrouter_service import OpenRouterClient
 
 logger = logging.getLogger(__name__)
 

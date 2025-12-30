@@ -7,7 +7,7 @@ Provides EmbeddingsService interface for converting text to embedding vectors.
 import httpx
 import logging
 from typing import List, Optional
-from backend.config import settings
+from config import settings
 
 logger = logging.getLogger(__name__)
 

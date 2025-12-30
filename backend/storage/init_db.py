@@ -7,8 +7,8 @@ Creates and initializes database schema from SQLAlchemy models.
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session as SASession
 import logging
-from backend.storage.models import Base, User, Session, ChatMessage
-from backend.config import settings
+from storage.models import Base, User, Session, ChatMessage
+from config import settings
 
 logger = logging.getLogger(__name__)
 

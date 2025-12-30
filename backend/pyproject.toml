@@ -8,7 +8,7 @@ version = "1.0.0"
 description = "Hallucination-free RAG chatbot backend for book content"
 readme = "README.md"
 requires-python = ">=3.11"
-license = {text = "MIT"}
+license = "MIT"
 authors = [
     {name = "BookRAGAgent Team"}
 ]
@@ -64,3 +64,6 @@ omit = ["*/tests/*"]
 precision = 2
 show_missing = true
 skip_covered = false
+
+[tool.setuptools]
+packages = ["api", "rag", "agent", "models", "storage", "services", "utils"]

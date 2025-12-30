@@ -9,9 +9,9 @@ import logging
 from uuid import UUID
 from datetime import datetime
 
-from backend.models.schemas import ChatRequest, ChatResponse, Citation, RetrievedChunkResponse, ChunkMetadata
-from backend.agent.sub_agents import RetrievalSubAgent, AnswerSubAgent, GuardrailsSubAgent, SelectionModeSubAgent, MemorySubAgent
-from backend.utils.errors import HallucinationDetectedException, RetrievalFailedException
+from models.schemas import ChatRequest, ChatResponse, Citation, RetrievedChunkResponse, ChunkMetadata
+from agent.sub_agents import RetrievalSubAgent, AnswerSubAgent, GuardrailsSubAgent, SelectionModeSubAgent, MemorySubAgent
+from utils.errors import HallucinationDetectedException, RetrievalFailedException
 
 logger = logging.getLogger(__name__)
 

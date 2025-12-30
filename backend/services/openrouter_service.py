@@ -7,7 +7,7 @@ Provides OpenRouterClient for calling LLM models via OpenRouter API.
 import httpx
 import logging
 from typing import Optional, Dict, Any
-from backend.config import settings
+from config import settings
 
 logger = logging.getLogger(__name__)
 

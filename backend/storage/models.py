@@ -35,7 +35,7 @@ class Session(Base):
     user_id = Column(PGUUID(as_uuid=True), ForeignKey("users.user_id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
-    metadata = Column(JSON, default={}, nullable=False)
+    session_metadata = Column("metadata", JSON, default={}, nullable=False)
 
     # Relationships
     user = relationship("User", back_populates="sessions")
@@ -59,7 +59,7 @@ class ChatMessage(Base):
     session_id = Column(PGUUID(as_uuid=True), ForeignKey("sessions.session_id"), nullable=False)
     role = Column(String(50), nullable=False)  # 'user' or 'assistant'
     content = Column(String, nullable=False)
-    metadata = Column(JSON, default={}, nullable=False)
+    message_metadata = Column("metadata", JSON, default={}, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships

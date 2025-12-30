@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 import logging
 import time
-from backend.utils.errors import RAGError, get_http_status_code, build_error_response
+from utils.errors import RAGError, get_http_status_code, build_error_response
 
 logger = logging.getLogger(__name__)
 

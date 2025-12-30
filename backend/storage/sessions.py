@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Optional, List
 import logging
 
-from backend.storage.models import User, Session, ChatMessage
+from storage.models import User, Session, ChatMessage
 
 logger = logging.getLogger(__name__)
 

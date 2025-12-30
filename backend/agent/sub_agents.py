@@ -10,9 +10,9 @@ Each sub-agent handles a specific part of the RAG pipeline:
 from typing import List, Dict, Any, Optional
 import logging
 
-from backend.rag.retrieval import VectorSearchSkill
-from backend.rag.grounding import GroundedSynthesisSkill, AntiHallucinationSkill, RetrievalValidationSkill
-from backend.services.openrouter_service import OpenRouterClient
+from rag.retrieval import VectorSearchSkill
+from rag.grounding import GroundedSynthesisSkill, AntiHallucinationSkill, RetrievalValidationSkill
+from services.openrouter_service import OpenRouterClient
 
 logger = logging.getLogger(__name__)
 
@@ -250,7 +250,7 @@ class SelectionModeSubAgent(SubAgentBase):
 
             # Lazy import to avoid circular dependencies
             if self.selected_text_skill is None:
-                from backend.rag.grounding import SelectedTextOverrideSkill
+                from rag.grounding import SelectedTextOverrideSkill
                 self.selected_text_skill = SelectedTextOverrideSkill()
 
             # Filter chunks to only those matching selected text
@@ -303,7 +303,7 @@ class MemorySubAgent(SubAgentBase):
         try:
             # Lazy import to avoid circular dependencies
             if self.persistence_skill is None:
-                from backend.rag.grounding import SessionPersistenceSkill
+                from rag.grounding import SessionPersistenceSkill
                 self.persistence_skill = SessionPersistenceSkill()
 
             logger.info(f"Memory agent retrieving context for session {session_id}")
