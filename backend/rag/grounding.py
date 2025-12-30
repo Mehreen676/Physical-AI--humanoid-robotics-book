@@ -302,3 +302,95 @@ class SelectedTextOverrideSkill(Skill):
         except Exception as e:
             logger.error(f"Selected text filtering failed: {e}")
             raise ValueError(f"Failed to filter chunks for selected text: {e}")
+
+
+class SessionPersistenceSkill(Skill):
+    """Skill for retrieving and using session context for multi-turn conversations."""
+
+    def __init__(self, session_manager=None):
+        """
+        Initialize SessionPersistenceSkill.
+
+        Args:
+            session_manager: SessionManager instance for retrieving session history
+        """
+        super().__init__("SessionPersistenceSkill")
+        self.session_manager = session_manager
+
+    async def execute(
+        self,
+        session_id: str,
+        limit: int = 5
+    ) -> Dict[str, Any]:
+        """
+        Retrieve session context from conversation history.
+
+        Retrieves previous messages in the session to provide context
+        for multi-turn conversations without contaminating the RAG retrieval.
+
+        Args:
+            session_id: UUID of the conversation session
+            limit: Maximum number of previous messages to retrieve
+
+        Returns:
+            Dictionary with session context:
+            {
+                "session_id": session_id,
+                "previous_messages": [...],
+                "context_summary": "summary of previous conversation"
+            }
+
+        Raises:
+            ValueError: If session not found
+        """
+        try:
+            if not self.session_manager:
+                logger.warning("No session manager provided, returning empty context")
+                return {
+                    "session_id": str(session_id),
+                    "previous_messages": [],
+                    "context_summary": ""
+                }
+
+            # Get session
+            try:
+                session = self.session_manager.get_session(session_id)
+            except Exception as e:
+                logger.warning(f"Could not retrieve session {session_id}: {e}")
+                return {
+                    "session_id": str(session_id),
+                    "previous_messages": [],
+                    "context_summary": ""
+                }
+
+            # Get recent messages (excluding current turn)
+            messages = self.session_manager.get_messages(session_id, limit=limit)
+
+            if not messages:
+                logger.info(f"No previous messages in session {session_id}")
+                return {
+                    "session_id": str(session_id),
+                    "previous_messages": [],
+                    "context_summary": ""
+                }
+
+            # Build context summary
+            message_texts = [f"{msg.role}: {msg.content}" for msg in messages]
+            context_summary = "\n".join(message_texts[-limit:])
+
+            logger.info(f"Retrieved {len(messages)} messages from session {session_id}")
+
+            return {
+                "session_id": str(session_id),
+                "previous_messages": message_texts[-limit:],
+                "context_summary": context_summary,
+                "message_count": len(messages)
+            }
+
+        except Exception as e:
+            logger.error(f"Session persistence skill failed: {e}")
+            return {
+                "session_id": str(session_id),
+                "previous_messages": [],
+                "context_summary": ""
+            }

@@ -10,7 +10,7 @@ from uuid import UUID
 from datetime import datetime
 
 from backend.models.schemas import ChatRequest, ChatResponse, Citation, RetrievedChunkResponse, ChunkMetadata
-from backend.agent.sub_agents import RetrievalSubAgent, AnswerSubAgent, GuardrailsSubAgent, SelectionModeSubAgent
+from backend.agent.sub_agents import RetrievalSubAgent, AnswerSubAgent, GuardrailsSubAgent, SelectionModeSubAgent, MemorySubAgent
 from backend.utils.errors import HallucinationDetectedException, RetrievalFailedException
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,8 @@ class BookRAGAgent:
         retrieval_agent: RetrievalSubAgent,
         answer_agent: AnswerSubAgent,
         guardrails_agent: GuardrailsSubAgent,
-        selection_mode_agent: Optional[SelectionModeSubAgent] = None
+        selection_mode_agent: Optional[SelectionModeSubAgent] = None,
+        memory_agent: Optional[MemorySubAgent] = None
     ):
         """
         Initialize BookRAGAgent.
@@ -34,11 +35,13 @@ class BookRAGAgent:
             answer_agent: AnswerSubAgent instance
             guardrails_agent: GuardrailsSubAgent instance
             selection_mode_agent: Optional SelectionModeSubAgent for selected-text filtering
+            memory_agent: Optional MemorySubAgent for multi-turn conversations
         """
         self.retrieval_agent = retrieval_agent
         self.answer_agent = answer_agent
         self.guardrails_agent = guardrails_agent
         self.selection_mode_agent = selection_mode_agent or SelectionModeSubAgent()
+        self.memory_agent = memory_agent or MemorySubAgent()
 
     async def execute(self, chat_request: ChatRequest) -> ChatResponse:
         """
@@ -62,6 +65,19 @@ class BookRAGAgent:
             HallucinationDetectedException: If answer is hallucination
         """
         logger.info(f"BookRAGAgent executing query from session {chat_request.session_id}")
+
+        # Step 0: Retrieve session context for multi-turn awareness
+        session_context = None
+        try:
+            logger.info("Step 0: Retrieving session context...")
+            session_context = await self.memory_agent.execute(
+                session_id=str(chat_request.session_id)
+            )
+            if session_context.get("previous_messages"):
+                logger.info(f"Retrieved {len(session_context['previous_messages'])} previous messages")
+        except Exception as e:
+            logger.warning(f"Could not retrieve session context: {e}")
+            session_context = {"previous_messages": [], "context_summary": ""}
 
         try:
             # Step 1: Retrieve chunks

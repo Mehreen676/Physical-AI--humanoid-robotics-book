@@ -268,3 +268,63 @@ class SelectionModeSubAgent(SubAgentBase):
         except Exception as e:
             logger.error(f"Selection mode sub-agent failed: {e}")
             raise
+
+
+class MemorySubAgent(SubAgentBase):
+    """Sub-agent for managing session memory and conversation context."""
+
+    def __init__(self, persistence_skill=None):
+        """
+        Initialize MemorySubAgent.
+
+        Args:
+            persistence_skill: SessionPersistenceSkill instance
+        """
+        super().__init__("MemorySubAgent")
+        self.persistence_skill = persistence_skill
+
+    async def execute(self, session_id: str, limit: int = 5) -> Dict[str, Any]:
+        """
+        Retrieve and provide session context for multi-turn conversations.
+
+        This agent retrieves previous messages from the session to maintain
+        conversation context without using them as a knowledge source for RAG.
+
+        Args:
+            session_id: UUID of the conversation session
+            limit: Maximum previous messages to include
+
+        Returns:
+            Session context dictionary with conversation history
+
+        Raises:
+            ValueError: If session not found or retrieval fails
+        """
+        try:
+            # Lazy import to avoid circular dependencies
+            if self.persistence_skill is None:
+                from backend.rag.grounding import SessionPersistenceSkill
+                self.persistence_skill = SessionPersistenceSkill()
+
+            logger.info(f"Memory agent retrieving context for session {session_id}")
+
+            # Get session context
+            context = await self.persistence_skill.execute(
+                session_id=session_id,
+                limit=limit
+            )
+
+            if not context.get("previous_messages"):
+                logger.info(f"No previous messages for session {session_id}, starting fresh")
+
+            return context
+
+        except Exception as e:
+            logger.error(f"Memory sub-agent failed: {e}")
+            # Return empty context on error
+            return {
+                "session_id": str(session_id),
+                "previous_messages": [],
+                "context_summary": "",
+                "error": str(e)
+            }
