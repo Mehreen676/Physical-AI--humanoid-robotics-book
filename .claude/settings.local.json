@@ -106,7 +106,10 @@
       "Bash(timeout 10 curl:*)",
       "Bash(npm run build:*)",
       "Bash(netstat:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(python -m py_compile:*)",
+      "Bash(tasklist:*)",
+      "Bash(wmic process where \"commandline like ''%python%'' and commandline like ''%main%''\" get processid,commandline)"
     ]
   }
 }

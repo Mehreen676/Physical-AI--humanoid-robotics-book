@@ -246,26 +246,50 @@ class VectorSearchSkill(Skill):
             threshold: Override default similarity threshold
 
         Returns:
-            List of retrieved chunks with metadata
+            List of retrieved chunks with metadata (can be empty)
         """
         try:
+            # Validate input
+            if not query_text or not query_text.strip():
+                logger.warning("Empty query text provided")
+                return []
+
             # Use provided values or defaults
             top_k = top_k or self.top_k
             threshold = threshold if threshold is not None else self.similarity_threshold
 
+            logger.info(f"VectorSearchSkill executing: query_len={len(query_text)}, top_k={top_k}, threshold={threshold}")
+
             # Generate embedding for query
             logger.info(f"Embedding query: {query_text[:100]}...")
-            query_embedding = await self.embeddings_service.embed(query_text)
+            try:
+                query_embedding = await self.embeddings_service.embed(query_text)
+                if not query_embedding or len(query_embedding) == 0:
+                    logger.warning("Embeddings service returned empty embedding")
+                    return []
+                logger.debug(f"Generated embedding with {len(query_embedding)} dimensions")
+            except Exception as e:
+                logger.error(f"Failed to generate query embedding: {e}")
+                raise Exception(f"Embedding generation failed: {str(e)[:100]}")
 
             # Search in Qdrant
             logger.info(f"Searching Qdrant for {top_k} chunks with threshold {threshold}")
-            chunks = self.retriever.search(
-                query_vector=query_embedding,
-                top_k=top_k,
-                threshold=threshold
-            )
+            try:
+                chunks = self.retriever.search(
+                    query_vector=query_embedding,
+                    top_k=top_k,
+                    threshold=threshold
+                )
+            except Exception as e:
+                logger.error(f"Qdrant search failed: {e}")
+                raise Exception(f"Qdrant retrieval failed: {str(e)[:100]}")
 
-            logger.info(f"Retrieved {len(chunks)} chunks")
+            # Handle empty results gracefully
+            if not chunks:
+                logger.info(f"No chunks retrieved (threshold: {threshold}). Returning empty result.")
+                return []
+
+            logger.info(f"Retrieved {len(chunks)} chunks from Qdrant")
             return chunks
 
         except Exception as e:

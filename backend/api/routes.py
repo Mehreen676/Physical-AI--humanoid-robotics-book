@@ -54,25 +54,48 @@ async def chat(chat_request: ChatRequest, request: Request) -> ChatResponse:
     Submit a question to the RAG chatbot.
 
     Retrieves relevant book content and returns a grounded answer with citations.
+    Always returns valid JSON response, even on errors.
     """
+    session_id = str(chat_request.session_id)
+
     try:
+        logger.info(f"=== CHAT REQUEST START ===")
+        logger.info(f"Session: {session_id}, Question: {chat_request.question[:100]}...")
+
+        # Get dependencies
         rag_agent = get_rag_agent(request)
         session_manager = get_session_manager(request)
 
         if not rag_agent:
-            raise RuntimeError("RAG agent not initialized")
+            logger.error("RAG agent is not initialized in app.state")
+            raise RuntimeError("RAG agent not initialized - backend startup incomplete")
 
-        logger.info(f"Chat request from session {chat_request.session_id}")
+        logger.info(f"Dependencies retrieved. RAG agent ready.")
 
-        # Execute RAG pipeline
-        response = await rag_agent.execute(chat_request)
+        # Execute RAG pipeline with error recovery
+        try:
+            logger.info(f"Executing RAG pipeline...")
+            response = await rag_agent.execute(chat_request)
+            logger.info(f"RAG pipeline completed. Answer length: {len(response.answer)}")
+        except Exception as e:
+            logger.error(f"RAG agent execution failed: {e}", exc_info=True)
+            # Return graceful fallback response instead of failing
+            logger.warning("Returning fallback response due to RAG execution failure")
+            response = ChatResponse(
+                answer="I encountered an error while processing your question. Please try again.",
+                citations=[],
+                retrieved_chunks=[]
+            )
+            logger.info(f"Fallback response created. Returning to client.")
+            return response
 
-        # Store messages in session
+        # Store messages in session (non-blocking failure)
         if session_manager:
             try:
+                logger.debug(f"Storing messages in session {session_id}...")
                 # Store user question
                 session_manager.add_message(
-                    session_id=chat_request.session_id,
+                    session_id=session_id,
                     role="user",
                     content=chat_request.question,
                     metadata={"question_type": "book_qa"}
@@ -81,7 +104,7 @@ async def chat(chat_request: ChatRequest, request: Request) -> ChatResponse:
                 # Store assistant response
                 import json
                 session_manager.add_message(
-                    session_id=request.session_id,
+                    session_id=session_id,
                     role="assistant",
                     content=json.dumps({
                         "answer": response.answer,
@@ -89,9 +112,13 @@ async def chat(chat_request: ChatRequest, request: Request) -> ChatResponse:
                     }),
                     metadata={"response_type": "grounded_answer"}
                 )
+                logger.debug(f"Session messages stored successfully")
             except Exception as e:
-                logger.warning(f"Failed to store messages in session: {e}")
+                logger.warning(f"Non-critical: Failed to store messages in session: {e}")
+        else:
+            logger.debug("Session manager not available - skipping session storage")
 
+        logger.info(f"=== CHAT REQUEST COMPLETE ===")
         return response
 
     except RAGError as exc:
@@ -101,20 +128,24 @@ async def chat(chat_request: ChatRequest, request: Request) -> ChatResponse:
             detail=build_error_response(exc)
         )
     except Exception as exc:
-        # Enhanced logging for debugging
-        logger.error(f"CRITICAL ERROR in /chat endpoint", exc_info=True)
+        # Comprehensive error logging for debugging
+        logger.error(f"=== CRITICAL ERROR IN /CHAT ENDPOINT ===")
+        logger.error(f"Session ID: {session_id}")
         logger.error(f"Exception type: {type(exc).__name__}")
-        logger.error(f"Exception message: {str(exc)}")
+        logger.error(f"Exception message: {str(exc)[:500]}")
         logger.error(f"Exception args: {exc.args}")
-        import traceback
-        logger.error(f"Full traceback:\n{traceback.format_exc()}")
 
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": "Internal Server Error",
-                "message": "An unexpected error occurred processing your request."
-            }
+        import traceback
+        tb_str = traceback.format_exc()
+        logger.error(f"Full traceback:\n{tb_str[:1000]}")  # Limit traceback length
+        logger.error(f"=== END CRITICAL ERROR ===")
+
+        # IMPORTANT: Always return valid JSON response (not HTTPException)
+        # This ensures frontend gets a proper ChatResponse even on backend errors
+        return ChatResponse(
+            answer="I encountered an unexpected error while processing your request. Please try again later.",
+            citations=[],
+            retrieved_chunks=[]
         )
 
 

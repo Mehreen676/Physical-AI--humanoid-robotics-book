@@ -44,17 +44,40 @@ class GroundedSynthesisSkill(Skill):
             max_tokens: Maximum tokens in response
 
         Returns:
-            Synthesized answer
+            Synthesized answer (or fallback message if synthesis fails)
         """
         try:
+            # Handle empty chunks gracefully
             if not chunks:
+                logger.warning("No chunks provided for synthesis, returning fallback response")
                 return "I could not find relevant information to answer your question."
 
-            # Build context from chunks
-            chunk_texts = "\n\n".join([
-                f"[{chunk['metadata']['chunk_id']}] {chunk['text']}"
-                for chunk in chunks
-            ])
+            # Validate chunk structure
+            valid_chunks = []
+            for chunk in chunks:
+                try:
+                    if isinstance(chunk, dict) and "text" in chunk and "metadata" in chunk:
+                        valid_chunks.append(chunk)
+                    else:
+                        logger.warning(f"Skipping invalid chunk structure: {type(chunk)}")
+                except Exception as e:
+                    logger.warning(f"Error processing chunk: {e}")
+                    continue
+
+            if not valid_chunks:
+                logger.warning("No valid chunks after validation, returning fallback response")
+                return "I could not find relevant information to answer your question."
+
+            # Build context from chunks with error handling
+            try:
+                chunk_texts = "\n\n".join([
+                    f"[{chunk['metadata'].get('chunk_id', 'unknown')}] {chunk['text'][:500]}"
+                    for chunk in valid_chunks
+                ])
+                logger.debug(f"Built context from {len(valid_chunks)} chunks, total length: {len(chunk_texts)}")
+            except Exception as e:
+                logger.error(f"Failed to build chunk context: {e}")
+                return "I could not format the retrieved information properly."
 
             # Create prompt that enforces grounding
             prompt = f"""You are a helpful assistant answering questions about a book based on provided excerpts.
@@ -69,22 +92,38 @@ User Question: {query_text}
 
 Provide a clear, concise answer based ONLY on the excerpts above."""
 
-            logger.info(f"Synthesizing answer from {len(chunks)} chunks")
+            logger.info(f"GroundedSynthesisSkill: Calling LLM with {len(valid_chunks)} chunks")
 
-            # Call LLM
-            result = await self.llm_client.call(
-                prompt=prompt,
-                temperature=temperature,
-                max_tokens=max_tokens
-            )
+            # Call LLM with error handling
+            try:
+                result = await self.llm_client.call(
+                    prompt=prompt,
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                )
+            except Exception as e:
+                logger.error(f"LLM call failed in synthesis: {e}")
+                raise Exception(f"LLM synthesis failed: {str(e)[:100]}")
 
-            answer = result["content"]
-            logger.info(f"Generated answer: {answer[:100]}...")
+            # Validate response structure
+            if not result or "content" not in result:
+                logger.error(f"Invalid LLM response format: {result}")
+                return "I was unable to generate an answer. Please try again."
+
+            answer = result.get("content", "").strip()
+
+            # Validate answer is not empty
+            if not answer:
+                logger.warning("LLM returned empty answer")
+                return "I could not generate an answer based on the provided information."
+
+            logger.info(f"Answer synthesis succeeded. Length: {len(answer)}")
             return answer
 
         except Exception as e:
             logger.error(f"Answer synthesis failed: {e}")
-            raise
+            # Return safe fallback instead of raising
+            return "I encountered an error while processing your question. Please try again."
 
 
 class AntiHallucinationSkill(Skill):
