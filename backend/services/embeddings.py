@@ -46,7 +46,8 @@ class EmbeddingsService:
             Exception: If embedding generation fails
         """
         if self.provider == "cohere":
-            return await self._embed_cohere([text])
+            embeddings = await self._embed_cohere([text])
+            return embeddings[0] if embeddings else []
         else:
             raise ValueError(f"Unsupported embeddings provider: {self.provider}")
 

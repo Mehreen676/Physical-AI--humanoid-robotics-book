@@ -42,7 +42,7 @@ class QdrantRetriever:
             logger.error(f"Failed to connect to Qdrant: {e}")
             raise
 
-    async def search(
+    def search(
         self,
         query_vector: List[float],
         top_k: int = 5,
@@ -60,22 +60,24 @@ class QdrantRetriever:
             List of retrieved chunks with metadata
         """
         try:
-            results = self.client.search(
+            # Use query_points instead of deprecated search method
+            results = self.client.query_points(
                 collection_name=self.collection_name,
-                query_vector=query_vector,
+                query=query_vector,
                 limit=top_k,
                 score_threshold=threshold
-            )
+            ).points
 
             chunks = []
             for result in results:
+                payload = result.payload if hasattr(result, 'payload') else result.get('payload', {})
                 chunk = {
-                    "text": result.payload.get("text", ""),
+                    "text": payload.get("text", ""),
                     "metadata": {
-                        "url": result.payload.get("url", ""),
-                        "section": result.payload.get("section", ""),
-                        "chunk_id": result.payload.get("chunk_id", ""),
-                        "position": result.payload.get("position", 0),
+                        "url": payload.get("url", ""),
+                        "section": payload.get("section", ""),
+                        "chunk_id": payload.get("chunk_id", ""),
+                        "position": payload.get("position", 0),
                         "embedding_score": result.score
                     }
                 }
@@ -105,14 +107,14 @@ class QdrantRetriever:
 
     def create_collection(
         self,
-        vector_size: int = 1280,
+        vector_size: int = 384,
         distance: str = "cosine"
     ) -> bool:
         """
         Create a new Qdrant collection.
 
         Args:
-            vector_size: Dimension of embedding vectors
+            vector_size: Dimension of embedding vectors (default: 384 for Cohere embed-english-light-v3.0)
             distance: Distance metric ('cosine', 'euclidean', 'manhattan')
 
         Returns:
@@ -134,7 +136,7 @@ class QdrantRetriever:
                     distance=distance_map.get(distance, Distance.COSINE)
                 ),
             )
-            logger.info(f"Created collection {self.collection_name}")
+            logger.info(f"Created collection {self.collection_name} with vector size {vector_size}")
             return True
         except Exception as e:
             logger.error(f"Failed to create collection: {e}")
@@ -257,7 +259,7 @@ class VectorSearchSkill(Skill):
 
             # Search in Qdrant
             logger.info(f"Searching Qdrant for {top_k} chunks with threshold {threshold}")
-            chunks = await self.retriever.search(
+            chunks = self.retriever.search(
                 query_vector=query_embedding,
                 top_k=top_k,
                 threshold=threshold
@@ -374,3 +376,15 @@ class DataIngestionSkill(Skill):
         except Exception as e:
             logger.error(f"Failed to ingest batch: {e}")
             return 0
+
+    async def execute(self, chunks: List[Dict[str, Any]]) -> int:
+        """
+        Execute data ingestion (implements Skill abstract method).
+
+        Args:
+            chunks: List of dicts with 'text' and 'metadata' keys
+
+        Returns:
+            Number of successfully ingested chunks
+        """
+        return await self.ingest_batch(chunks)
