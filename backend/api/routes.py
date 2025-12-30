@@ -49,7 +49,7 @@ def set_dependencies(app, rag_agent, session_manager, qdrant_retriever, openrout
 
 
 @router.post("/chat", response_model=ChatResponse, status_code=200)
-async def chat(request: ChatRequest) -> ChatResponse:
+async def chat(chat_request: ChatRequest, request: Request) -> ChatResponse:
     """
     Submit a question to the RAG chatbot.
 
@@ -62,19 +62,19 @@ async def chat(request: ChatRequest) -> ChatResponse:
         if not rag_agent:
             raise RuntimeError("RAG agent not initialized")
 
-        logger.info(f"Chat request from session {request.session_id}")
+        logger.info(f"Chat request from session {chat_request.session_id}")
 
         # Execute RAG pipeline
-        response = await rag_agent.execute(request)
+        response = await rag_agent.execute(chat_request)
 
         # Store messages in session
         if session_manager:
             try:
                 # Store user question
                 session_manager.add_message(
-                    session_id=request.session_id,
+                    session_id=chat_request.session_id,
                     role="user",
-                    content=request.question,
+                    content=chat_request.question,
                     metadata={"question_type": "book_qa"}
                 )
 
@@ -101,7 +101,14 @@ async def chat(request: ChatRequest) -> ChatResponse:
             detail=build_error_response(exc)
         )
     except Exception as exc:
-        logger.error(f"Unexpected error in /chat: {exc}", exc_info=True)
+        # Enhanced logging for debugging
+        logger.error(f"CRITICAL ERROR in /chat endpoint", exc_info=True)
+        logger.error(f"Exception type: {type(exc).__name__}")
+        logger.error(f"Exception message: {str(exc)}")
+        logger.error(f"Exception args: {exc.args}")
+        import traceback
+        logger.error(f"Full traceback:\n{traceback.format_exc()}")
+
         raise HTTPException(
             status_code=500,
             detail={
