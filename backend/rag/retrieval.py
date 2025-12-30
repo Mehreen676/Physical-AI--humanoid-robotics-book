@@ -140,6 +140,67 @@ class QdrantRetriever:
             logger.error(f"Failed to create collection: {e}")
             return False
 
+    def upsert(
+        self,
+        point_id: int,
+        vector: List[float],
+        payload: Dict[str, Any]
+    ) -> bool:
+        """
+        Upsert a single point to Qdrant collection.
+
+        Args:
+            point_id: Unique ID for the point
+            vector: Embedding vector
+            payload: Metadata dictionary (text, url, section, etc.)
+
+        Returns:
+            True if successful
+        """
+        try:
+            self.client.upsert(
+                collection_name=self.collection_name,
+                points=[PointStruct(id=point_id, vector=vector, payload=payload)]
+            )
+            logger.debug(f"Upserted point {point_id} to {self.collection_name}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to upsert point {point_id}: {e}")
+            return False
+
+    def upsert_batch(
+        self,
+        points: List[Dict[str, Any]]
+    ) -> int:
+        """
+        Upsert multiple points to Qdrant collection.
+
+        Args:
+            points: List of dicts with 'id', 'vector', 'payload' keys
+
+        Returns:
+            Number of successfully upserted points
+        """
+        try:
+            qdrant_points = [
+                PointStruct(
+                    id=p.get("id", i),
+                    vector=p.get("vector", []),
+                    payload=p.get("payload", {})
+                )
+                for i, p in enumerate(points)
+            ]
+
+            self.client.upsert(
+                collection_name=self.collection_name,
+                points=qdrant_points
+            )
+            logger.info(f"Upserted {len(qdrant_points)} points to {self.collection_name}")
+            return len(qdrant_points)
+        except Exception as e:
+            logger.error(f"Failed to upsert batch: {e}")
+            return 0
+
 
 class VectorSearchSkill(Skill):
     """Skill for retrieving relevant chunks from vector database."""
@@ -208,3 +269,108 @@ class VectorSearchSkill(Skill):
         except Exception as e:
             logger.error(f"Vector search failed: {e}")
             raise
+
+
+class DataIngestionSkill(Skill):
+    """Skill for ingesting and storing data in Qdrant vector database."""
+
+    def __init__(
+        self,
+        retriever: QdrantRetriever,
+        embeddings_service: EmbeddingsService
+    ):
+        """
+        Initialize DataIngestionSkill.
+
+        Args:
+            retriever: QdrantRetriever instance
+            embeddings_service: EmbeddingsService instance
+        """
+        super().__init__("DataIngestionSkill")
+        self.retriever = retriever
+        self.embeddings_service = embeddings_service
+        self.point_id_counter = 0
+
+    async def ingest_chunk(
+        self,
+        text: str,
+        metadata: Dict[str, Any]
+    ) -> bool:
+        """
+        Ingest a single text chunk with metadata.
+
+        Args:
+            text: Text content to embed and store
+            metadata: Metadata dict (url, section, position, etc.)
+
+        Returns:
+            True if successful
+        """
+        try:
+            # Generate embedding
+            embedding = await self.embeddings_service.embed(text)
+
+            # Prepare payload
+            payload = {
+                "text": text,
+                **metadata  # Include all metadata
+            }
+
+            # Upsert to Qdrant
+            self.point_id_counter += 1
+            success = self.retriever.upsert(
+                point_id=self.point_id_counter,
+                vector=embedding,
+                payload=payload
+            )
+
+            if success:
+                logger.info(f"Ingested chunk {self.point_id_counter}: {text[:50]}...")
+            else:
+                logger.error(f"Failed to ingest chunk: {text[:50]}...")
+
+            return success
+
+        except Exception as e:
+            logger.error(f"Failed to ingest chunk: {e}")
+            return False
+
+    async def ingest_batch(
+        self,
+        chunks: List[Dict[str, Any]]
+    ) -> int:
+        """
+        Ingest multiple text chunks with metadata.
+
+        Args:
+            chunks: List of dicts with 'text' and 'metadata' keys
+
+        Returns:
+            Number of successfully ingested chunks
+        """
+        try:
+            # Generate embeddings for all texts
+            texts = [c.get("text", "") for c in chunks]
+            embeddings = await self.embeddings_service.embed_batch(texts)
+
+            # Prepare points for Qdrant
+            points = []
+            for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+                self.point_id_counter += 1
+                points.append({
+                    "id": self.point_id_counter,
+                    "vector": embedding,
+                    "payload": {
+                        "text": chunk.get("text", ""),
+                        **(chunk.get("metadata", {}))
+                    }
+                })
+
+            # Upsert batch to Qdrant
+            count = self.retriever.upsert_batch(points)
+            logger.info(f"Ingested {count} chunks from batch")
+            return count
+
+        except Exception as e:
+            logger.error(f"Failed to ingest batch: {e}")
+            return 0

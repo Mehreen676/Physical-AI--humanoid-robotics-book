@@ -15,16 +15,18 @@ logger = logging.getLogger(__name__)
 class EmbeddingsService:
     """Service for generating text embeddings."""
 
-    def __init__(self, provider: str = "cohere", api_key: Optional[str] = None):
+    def __init__(self, provider: str = "cohere", api_key: Optional[str] = None, model: Optional[str] = None):
         """
         Initialize embeddings service.
 
         Args:
             provider: Embeddings provider ('cohere', 'openai', etc.)
             api_key: API key for the provider
+            model: Model name for embeddings
         """
         self.provider = provider or settings.embeddings_provider
         self.api_key = api_key or settings.embeddings_api_key
+        self.model = model or settings.cohere_embedding_model
         self.timeout = 30.0
 
         if not self.api_key:
@@ -84,7 +86,7 @@ class EmbeddingsService:
 
             payload = {
                 "texts": texts,
-                "model": "embed-english-v3.0",
+                "model": self.model,
                 "input_type": "search_document",
             }
 

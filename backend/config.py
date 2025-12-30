@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     # Embeddings Configuration
     embeddings_provider: str = Field(default="cohere", env="EMBEDDINGS_PROVIDER")
     embeddings_api_key: Optional[str] = Field(default=None, env="EMBEDDINGS_API_KEY")
+    cohere_embedding_model: str = Field(default="embed-english-light-v3.0", env="COHERE_EMBEDDING_MODEL")
 
     # RAG Configuration
     retrieval_top_k: int = Field(default=5, env="RETRIEVAL_TOP_K")
