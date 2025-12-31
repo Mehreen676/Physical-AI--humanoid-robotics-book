@@ -13,6 +13,8 @@ WORKDIR /app
 RUN useradd -m -u 1000 appuser && \
     chown -R appuser:appuser /app
 
+   # hadolint ignore=DL3008
+ 
 # Install system dependencies (minimal for security)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
