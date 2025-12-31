@@ -109,7 +109,16 @@
       "Bash(findstr:*)",
       "Bash(python -m py_compile:*)",
       "Bash(tasklist:*)",
-      "Bash(wmic process where \"commandline like ''%python%'' and commandline like ''%main%''\" get processid,commandline)"
+      "Bash(wmic process where \"commandline like ''%python%'' and commandline like ''%main%''\" get processid,commandline)",
+      "Bash(wmic process where \"name=''python.exe'' and commandline like ''%uvicorn%main%''\" get processid)",
+      "Bash(timeout 10 python:*)",
+      "Bash(timeout 15 python:*)",
+      "Bash(timeout 30 python:*)",
+      "Bash(wmic process where \"name=''python.exe''\" delete)",
+      "Bash(wmic process where \"ProcessId=480\" delete)",
+      "Bash(wmic process where \"ProcessId=5260\" delete)",
+      "Bash(wmic process where \"name=''python.exe''\" get processid,commandline)",
+      "WebFetch(domain:openrouter.ai)"
     ]
   }
 }

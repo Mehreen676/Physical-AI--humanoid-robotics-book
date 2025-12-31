@@ -72,6 +72,7 @@ async def startup():
 
     try:
         # Initialize database
+        logger.info("Step 1: Initializing database...")
         from storage.init_db import init_db
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
@@ -80,6 +81,7 @@ async def startup():
         logger.info("Database initialized")
 
         # Initialize session manager
+        logger.info("Step 2: Initializing session manager...")
         from storage.sessions import SessionManager
         engine = create_engine(settings.database_url)
         SessionLocal = sessionmaker(bind=engine)
@@ -88,6 +90,7 @@ async def startup():
         logger.info("Session manager initialized")
 
         # Initialize Qdrant retriever
+        logger.info("Step 3: Initializing Qdrant retriever...")
         from rag.retrieval import QdrantRetriever
         qdrant_retriever = QdrantRetriever(
             qdrant_url=settings.qdrant_url,
@@ -97,6 +100,7 @@ async def startup():
         logger.info("Qdrant retriever initialized")
 
         # Initialize embeddings service
+        logger.info("Step 4: Initializing embeddings service...")
         from services.embeddings import EmbeddingsService
         embeddings_service = EmbeddingsService(
             provider=settings.embeddings_provider,
@@ -105,6 +109,7 @@ async def startup():
         logger.info("Embeddings service initialized")
 
         # Initialize OpenRouter client
+        logger.info("Step 5: Initializing OpenRouter client...")
         from services.openrouter_service import OpenRouterClient
         openrouter_client = OpenRouterClient(
             api_key=settings.openrouter_api_key,
@@ -113,6 +118,7 @@ async def startup():
         logger.info("OpenRouter client initialized")
 
         # Initialize RAG agent
+        logger.info("Step 6: Initializing RAG agent...")
         from agent.agent import BookRAGAgent
         from agent.sub_agents import (
             RetrievalSubAgent, AnswerSubAgent, GuardrailsSubAgent,
@@ -128,7 +134,9 @@ async def startup():
         # Create vector search skill
         vector_search = VectorSearchSkill(
             retriever=qdrant_retriever,
-            embeddings_service=embeddings_service
+            embeddings_service=embeddings_service,
+            top_k=settings.retrieval_top_k,
+            similarity_threshold=settings.similarity_threshold
         )
 
         # Create sub-agents

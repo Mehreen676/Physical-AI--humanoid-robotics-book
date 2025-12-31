@@ -59,7 +59,7 @@ class ChatResponse(BaseModel):
 class SessionCreateResponse(BaseModel):
     """Response schema for POST /sessions endpoint."""
     session_id: UUID
-    created_at: datetime
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class ChatMessage(BaseModel):

@@ -30,14 +30,27 @@ class QdrantRetriever:
         self.qdrant_url = qdrant_url
         self.api_key = api_key
         self.collection_name = collection_name or settings.collection_name
+        self.client = None  # Lazy initialization
+        self._connection_attempted = False
+        logger.info(f"QdrantRetriever initialized (lazy connection to {qdrant_url})")
 
+    def _ensure_connected(self):
+        """Lazy initialization of Qdrant client connection."""
+        if self.client is not None:
+            return  # Already connected
+
+        if self._connection_attempted:
+            raise RuntimeError("Qdrant connection previously failed")
+
+        self._connection_attempted = True
         try:
+            logger.info(f"Connecting to Qdrant at {self.qdrant_url}...")
             self.client = QdrantClient(
-                url=qdrant_url,
-                api_key=api_key,
+                url=self.qdrant_url,
+                api_key=self.api_key,
                 timeout=30.0
             )
-            logger.info(f"Connected to Qdrant at {qdrant_url}")
+            logger.info(f"Connected to Qdrant at {self.qdrant_url}")
         except Exception as e:
             logger.error(f"Failed to connect to Qdrant: {e}")
             raise
@@ -60,6 +73,9 @@ class QdrantRetriever:
             List of retrieved chunks with metadata
         """
         try:
+            # Ensure connection before searching
+            self._ensure_connected()
+
             # Use query_points instead of deprecated search method
             results = self.client.query_points(
                 collection_name=self.collection_name,
@@ -98,6 +114,7 @@ class QdrantRetriever:
             Dictionary with 'status' key
         """
         try:
+            self._ensure_connected()
             health = self.client.get_collection_info(self.collection_name)
             logger.info("Qdrant health check passed")
             return {"status": "ok"}
@@ -121,6 +138,7 @@ class QdrantRetriever:
             True if collection was created or already exists
         """
         try:
+            self._ensure_connected()
             from qdrant_client.models import VectorParams, Distance
 
             distance_map = {
@@ -160,6 +178,7 @@ class QdrantRetriever:
             True if successful
         """
         try:
+            self._ensure_connected()
             self.client.upsert(
                 collection_name=self.collection_name,
                 points=[PointStruct(id=point_id, vector=vector, payload=payload)]
@@ -184,6 +203,7 @@ class QdrantRetriever:
             Number of successfully upserted points
         """
         try:
+            self._ensure_connected()
             qdrant_points = [
                 PointStruct(
                     id=p.get("id", i),

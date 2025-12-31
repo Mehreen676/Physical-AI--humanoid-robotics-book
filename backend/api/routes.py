@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, status, Request
 from typing import Optional
 import logging
 from uuid import UUID
+from datetime import datetime
 
 from models.schemas import (
     ChatRequest, ChatResponse, SessionCreateResponse,
@@ -166,8 +167,7 @@ async def create_session(request: Request) -> SessionCreateResponse:
         session_id = session_manager.create_session()
 
         return SessionCreateResponse(
-            session_id=UUID(session_id),
-            created_at=None  # Will be set by pydantic
+            session_id=UUID(session_id)
         )
 
     except Exception as exc:
