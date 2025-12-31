@@ -157,11 +157,23 @@ class AntiHallucinationSkill(Skill):
             Dictionary with 'grounded' (bool) and optionally 'veto_reason' (str)
         """
         try:
+            # Validate inputs
+            if not answer or not isinstance(answer, str):
+                logger.error(f"Invalid answer for hallucination check: {type(answer)}")
+                return {
+                    "grounded": False,
+                    "veto_reason": "Invalid answer format for validation."
+                }
+
             # Build chunk text for reference
-            chunk_texts = "\n\n".join([
-                f"[{chunk['metadata']['chunk_id']}] {chunk['text']}"
-                for chunk in chunks
-            ])
+            try:
+                chunk_texts = "\n\n".join([
+                    f"[{chunk.get('metadata', {}).get('chunk_id', 'unknown')}] {chunk.get('text', '')[:500]}"
+                    for chunk in chunks if chunk
+                ])
+            except Exception as e:
+                logger.error(f"Failed to build chunk text: {e}")
+                chunk_texts = ""
 
             # Create validation prompt
             prompt = f"""You are a fact-checker for a book Q&A system.
@@ -169,7 +181,7 @@ class AntiHallucinationSkill(Skill):
 Your task: Determine if the answer is grounded ONLY in the provided book excerpts.
 
 Book Excerpts:
-{chunk_texts}
+{chunk_texts if chunk_texts else "No excerpts available"}
 
 User Question: {query_text}
 
@@ -182,14 +194,39 @@ Respond with ONLY one word:
 
             logger.info("Checking answer for hallucinations")
 
-            # Call LLM for validation
-            result = await self.llm_client.call(
-                prompt=prompt,
-                temperature=0.0,  # Deterministic
-                max_tokens=50
-            )
+            # Call LLM for validation with error handling
+            try:
+                result = await self.llm_client.call(
+                    prompt=prompt,
+                    temperature=0.0,  # Deterministic
+                    max_tokens=50
+                )
+            except Exception as e:
+                logger.error(f"LLM call for hallucination check failed: {e}")
+                # Default to conservative response on LLM failure
+                return {
+                    "grounded": False,
+                    "veto_reason": "Could not validate answer against source material."
+                }
 
-            validation = result["content"].strip().upper()
+            # Validate LLM result
+            if result is None or not isinstance(result, dict):
+                logger.error(f"Invalid LLM result: {type(result)}")
+                return {
+                    "grounded": False,
+                    "veto_reason": "Invalid validation response format."
+                }
+
+            # Extract content safely
+            validation_text = result.get("content", "")
+            if not validation_text or not isinstance(validation_text, str):
+                logger.error(f"LLM returned invalid validation content: {type(validation_text)}")
+                return {
+                    "grounded": False,
+                    "veto_reason": "Could not parse validation response."
+                }
+
+            validation = validation_text.strip().upper()
 
             if "GROUNDED" in validation:
                 logger.info("Answer passed hallucination check")
@@ -202,8 +239,8 @@ Respond with ONLY one word:
                 }
 
         except Exception as e:
-            logger.error(f"Hallucination check failed: {e}")
-            # Default to safe response
+            logger.error(f"Hallucination check failed: {e}", exc_info=True)
+            # Default to safe response - conservative validation
             return {
                 "grounded": False,
                 "veto_reason": "Could not validate answer against source material."

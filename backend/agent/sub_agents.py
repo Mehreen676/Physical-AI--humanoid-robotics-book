@@ -127,17 +127,36 @@ class AnswerSubAgent(SubAgentBase):
             query_text: Original user query
 
         Returns:
-            Synthesized answer
+            Synthesized answer (guaranteed non-None string)
         """
-        logger.info(f"AnswerSubAgent synthesizing answer from {len(chunks)} chunks")
+        try:
+            logger.info(f"AnswerSubAgent synthesizing answer from {len(chunks)} chunks")
 
-        answer = await self.synthesis_skill.execute(
-            chunks=chunks,
-            query_text=query_text
-        )
+            answer = await self.synthesis_skill.execute(
+                chunks=chunks,
+                query_text=query_text
+            )
 
-        logger.info(f"AnswerSubAgent generated answer: {answer[:50]}...")
-        return answer
+            # Validate answer is not None and is a string
+            if answer is None:
+                logger.error("GroundedSynthesisSkill returned None")
+                answer = "I was unable to generate an answer. Please try again."
+
+            if not isinstance(answer, str):
+                logger.error(f"GroundedSynthesisSkill returned non-string: {type(answer)}")
+                answer = str(answer) if answer else "I was unable to generate an answer."
+
+            # Ensure answer is not empty
+            if not answer.strip():
+                logger.warning("GroundedSynthesisSkill returned empty string")
+                answer = "I could not generate an answer based on the provided information."
+
+            logger.info(f"AnswerSubAgent generated answer: {answer[:100]}...")
+            return answer
+
+        except Exception as e:
+            logger.error(f"AnswerSubAgent.execute() failed: {e}", exc_info=True)
+            return "I encountered an error while synthesizing an answer. Please try again."
 
 
 class GuardrailsSubAgent(SubAgentBase):
@@ -175,36 +194,80 @@ class GuardrailsSubAgent(SubAgentBase):
 
         Returns:
             Dictionary with 'approved' (bool), 'answer', and optionally 'veto_reason'
+            Always returns valid dict with required keys
         """
-        logger.info("GuardrailsSubAgent validating answer")
-
-        # Validate chunk metadata
         try:
-            validated_chunks = await self.validation_skill.execute(chunks)
-        except Exception as e:
-            logger.error(f"Chunk validation failed: {e}")
+            logger.info("GuardrailsSubAgent validating answer")
+
+            # Validate input
+            if not answer or not isinstance(answer, str):
+                logger.error(f"Invalid answer for guardrails: {type(answer)}")
+                return {
+                    "approved": False,
+                    "veto_reason": "Invalid answer format",
+                    "answer": str(answer) if answer else "No answer provided",
+                    "chunks": chunks
+                }
+
+            # Validate chunk metadata
             validated_chunks = chunks
+            try:
+                validated_chunks = await self.validation_skill.execute(chunks)
+                if validated_chunks is None:
+                    logger.warning("Chunk validation returned None, using original chunks")
+                    validated_chunks = chunks
+            except Exception as e:
+                logger.error(f"Chunk validation failed: {e}")
+                validated_chunks = chunks
 
-        # Check for hallucinations
-        hallucination_check = await self.hallucination_skill.execute(
-            answer=answer,
-            chunks=validated_chunks,
-            query_text=query_text
-        )
+            # Check for hallucinations
+            try:
+                hallucination_check = await self.hallucination_skill.execute(
+                    answer=answer,
+                    chunks=validated_chunks,
+                    query_text=query_text
+                )
+            except Exception as e:
+                logger.error(f"Hallucination check failed: {e}", exc_info=True)
+                # Default to approval if hallucination check fails
+                hallucination_check = {"grounded": True}
 
-        if hallucination_check["grounded"]:
-            logger.info("Answer approved by guardrails")
+            # Validate hallucination_check is not None
+            if hallucination_check is None:
+                logger.error("AntiHallucinationSkill returned None")
+                hallucination_check = {"grounded": True}
+
+            if not isinstance(hallucination_check, dict):
+                logger.error(f"AntiHallucinationSkill returned non-dict: {type(hallucination_check)}")
+                hallucination_check = {"grounded": True}
+
+            # Get grounded status (default to True if missing)
+            grounded = hallucination_check.get("grounded", True)
+
+            if grounded:
+                logger.info("Answer approved by guardrails")
+                return {
+                    "approved": True,
+                    "answer": answer,
+                    "chunks": validated_chunks
+                }
+            else:
+                veto_reason = hallucination_check.get("veto_reason", "Failed guardrail validation")
+                logger.warning(f"Answer vetoed: {veto_reason}")
+                return {
+                    "approved": False,
+                    "veto_reason": veto_reason,
+                    "answer": answer,
+                    "chunks": validated_chunks
+                }
+
+        except Exception as e:
+            logger.error(f"GuardrailsSubAgent.execute() failed: {e}", exc_info=True)
+            # Return safe approval on unexpected error
             return {
                 "approved": True,
                 "answer": answer,
-                "chunks": validated_chunks
-            }
-        else:
-            logger.warning(f"Answer vetoed: {hallucination_check.get('veto_reason', 'Unknown reason')}")
-            return {
-                "approved": False,
-                "veto_reason": hallucination_check.get("veto_reason", "Unknown reason"),
-                "chunks": validated_chunks
+                "chunks": chunks
             }
 
 

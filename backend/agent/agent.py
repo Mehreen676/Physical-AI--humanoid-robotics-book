@@ -117,31 +117,66 @@ class BookRAGAgent:
 
             # Step 2: Synthesize answer
             logger.info("Step 2: Synthesizing answer...")
-            answer = await self.answer_agent.execute(
-                chunks=chunks,
-                query_text=chat_request.question
-            )
+            try:
+                answer = await self.answer_agent.execute(
+                    chunks=chunks,
+                    query_text=chat_request.question
+                )
+                # Validate answer is not None
+                if answer is None:
+                    logger.error("AnswerSubAgent returned None")
+                    return self._build_fallback_response(
+                        "I was unable to generate an answer. Please try again.",
+                        chunks
+                    )
+            except Exception as e:
+                logger.error(f"AnswerSubAgent execution failed: {e}", exc_info=True)
+                return self._build_fallback_response(
+                    "I encountered an error while synthesizing an answer.",
+                    chunks
+                )
 
             # Step 3: Guardrails validation
             logger.info("Step 3: Validating answer against guardrails...")
-            guardrail_result = await self.guardrails_agent.execute(
-                answer=answer,
-                chunks=chunks,
-                query_text=chat_request.question
-            )
+            try:
+                guardrail_result = await self.guardrails_agent.execute(
+                    answer=answer,
+                    chunks=chunks,
+                    query_text=chat_request.question
+                )
+                # Validate guardrail result
+                if guardrail_result is None:
+                    logger.error("GuardrailsSubAgent returned None")
+                    return self._build_fallback_response(
+                        "I was unable to validate the answer.",
+                        chunks
+                    )
+                if not isinstance(guardrail_result, dict):
+                    logger.error(f"GuardrailsSubAgent returned non-dict: {type(guardrail_result)}")
+                    return self._build_fallback_response(
+                        "Invalid guardrail response format.",
+                        chunks
+                    )
+            except Exception as e:
+                logger.error(f"GuardrailsSubAgent execution failed: {e}", exc_info=True)
+                return self._build_fallback_response(
+                    "I encountered an error while validating the answer.",
+                    chunks
+                )
 
-            if not guardrail_result["approved"]:
-                logger.warning(f"Answer rejected by guardrails: {guardrail_result.get('veto_reason')}")
+            if not guardrail_result.get("approved"):
+                veto_reason = guardrail_result.get("veto_reason", "Unknown reason")
+                logger.warning(f"Answer rejected by guardrails: {veto_reason}")
                 return self._build_fallback_response(
                     "I cannot provide a reliable answer to this question based on the book content.",
-                    guardrail_result.get("chunks", [])
+                    guardrail_result.get("chunks", chunks)
                 )
 
             # Step 4: Build response
             logger.info("Building response...")
             return self._build_response(
-                answer=guardrail_result["answer"],
-                chunks=guardrail_result["chunks"]
+                answer=guardrail_result.get("answer", answer),
+                chunks=guardrail_result.get("chunks", chunks)
             )
 
         except RetrievalFailedException as e:
