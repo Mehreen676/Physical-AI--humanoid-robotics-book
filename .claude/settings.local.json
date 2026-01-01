@@ -118,7 +118,10 @@
       "Bash(wmic process where \"ProcessId=480\" delete)",
       "Bash(wmic process where \"ProcessId=5260\" delete)",
       "Bash(wmic process where \"name=''python.exe''\" get processid,commandline)",
-      "WebFetch(domain:openrouter.ai)"
+      "WebFetch(domain:openrouter.ai)",
+      "Bash(dir:*)",
+      "mcp__github__get_me",
+      "Bash(npm run deploy:*)"
     ]
   }
 }
