@@ -39,18 +39,21 @@ class Settings(BaseSettings):
     qdrant_api_key: str = Field(default="", env="QDRANT_API_KEY")
     collection_name: str = Field(default="book-chunks", env="COLLECTION_NAME")
 
-    # OpenRouter Configuration (LLM Provider)
-    openrouter_api_key: str = Field(default="", env="OPENROUTER_API_KEY")
-    openrouter_url: str = Field(default="https://openrouter.io/api/v1", env="OPENROUTER_URL")
-    model_name: str = Field(default="claude-3-5-sonnet", env="MODEL_NAME")
+    # Google Gemini Configuration (LLM Provider)
+    gemini_api_key: str = Field(default="", env="GEMINI_API_KEY")
+    model_name: str = Field(default="gemini-1.5-flash", env="MODEL_NAME")
 
     # Database Configuration (Neon PostgreSQL)
     database_url: str = Field(default="", env="DATABASE_URL")
 
     # Embeddings Configuration
     embeddings_provider: str = Field(default="cohere", env="EMBEDDINGS_PROVIDER")
-    embeddings_api_key: Optional[str] = Field(default=None, env="EMBEDDINGS_API_KEY")
+    cohere_api_key: str = Field(default="", env="COHERE_API_KEY")
     cohere_embedding_model: str = Field(default="embed-english-light-v3.0", env="COHERE_EMBEDDING_MODEL")
+
+    # CORS Configuration
+    frontend_url: str = Field(default="", env="FRONTEND_URL")
+    allowed_origins: str = Field(default="*", env="ALLOWED_ORIGINS")
 
     # RAG Configuration
     retrieval_top_k: int = Field(default=5, env="RETRIEVAL_TOP_K")
@@ -79,12 +82,20 @@ class Settings(BaseSettings):
             raise ValueError("QDRANT_API_KEY is required")
         return v
 
-    @field_validator("openrouter_api_key", mode="before")
+    @field_validator("gemini_api_key", mode="before")
     @classmethod
-    def validate_openrouter_api_key(cls, v):
-        """Validate OpenRouter API key is configured."""
+    def validate_gemini_api_key(cls, v):
+        """Validate Gemini API key is configured."""
         if not v:
-            raise ValueError("OPENROUTER_API_KEY is required")
+            raise ValueError("GEMINI_API_KEY is required")
+        return v
+
+    @field_validator("cohere_api_key", mode="before")
+    @classmethod
+    def validate_cohere_api_key(cls, v):
+        """Validate Cohere API key is configured."""
+        if not v:
+            raise ValueError("COHERE_API_KEY is required")
         return v
 
     @field_validator("database_url", mode="before")
@@ -93,7 +104,7 @@ class Settings(BaseSettings):
         """Validate database URL is configured."""
         if not v:
             raise ValueError("DATABASE_URL is required")
-        if not v.startswith("postgresql://"):
+        if not (v.startswith("postgresql://") or v.startswith("postgresql+asyncpg://")):
             raise ValueError("DATABASE_URL must be a PostgreSQL connection string")
         return v
 

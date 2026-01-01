@@ -37,16 +37,16 @@ def get_qdrant_retriever(request):
     """Get Qdrant retriever from app state."""
     return getattr(request.app.state, 'qdrant_retriever', None)
 
-def get_openrouter_client(request):
-    """Get OpenRouter client from app state."""
-    return getattr(request.app.state, 'openrouter_client', None)
+def get_gemini_client(request):
+    """Get Gemini client from app state."""
+    return getattr(request.app.state, 'gemini_client', None)
 
-def set_dependencies(app, rag_agent, session_manager, qdrant_retriever, openrouter_client):
+def set_dependencies(app, rag_agent, session_manager, qdrant_retriever, gemini_client):
     """Set up dependencies in app.state."""
     app.state.rag_agent = rag_agent
     app.state.session_manager = session_manager
     app.state.qdrant_retriever = qdrant_retriever
-    app.state.openrouter_client = openrouter_client
+    app.state.gemini_client = gemini_client
 
 
 @router.post("/chat", response_model=ChatResponse, status_code=200)
@@ -245,7 +245,7 @@ async def health_check(request: Request) -> HealthResponse:
     try:
         services = {}
         qdrant_retriever = get_qdrant_retriever(request)
-        openrouter_client = get_openrouter_client(request)
+        gemini_client = get_gemini_client(request)
         session_manager = get_session_manager(request)
 
         # Check Qdrant
@@ -255,12 +255,12 @@ async def health_check(request: Request) -> HealthResponse:
         else:
             services["qdrant"] = "not_initialized"
 
-        # Check OpenRouter
-        if openrouter_client:
-            router_health = await openrouter_client.health_check()
-            services["openrouter"] = router_health.get("status", "unknown")
+        # Check Gemini
+        if gemini_client:
+            gemini_health = gemini_client.health_check()
+            services["gemini"] = gemini_health.get("status", "unknown")
         else:
-            services["openrouter"] = "not_initialized"
+            services["gemini"] = "not_initialized"
 
         # Check database (basic check)
         if session_manager:

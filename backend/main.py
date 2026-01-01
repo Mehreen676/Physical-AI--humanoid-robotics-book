@@ -31,14 +31,23 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Add CORS middleware
+# Parse CORS allowed origins from settings
+allowed_origins_list = (
+    [origin.strip() for origin in settings.allowed_origins.split(",")]
+    if settings.allowed_origins != "*"
+    else ["*"]
+)
+
+# Add CORS middleware with configured origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+logger.info(f"CORS configured for origins: {allowed_origins_list}")
 
 # Include API routes
 app.include_router(routes.router)
@@ -61,7 +70,7 @@ async def debug_state():
         "has_rag_agent": hasattr(app.state, "rag_agent"),
         "has_session_manager": hasattr(app.state, "session_manager"),
         "has_qdrant_retriever": hasattr(app.state, "qdrant_retriever"),
-        "has_openrouter_client": hasattr(app.state, "openrouter_client"),
+        "has_gemini_client": hasattr(app.state, "gemini_client"),
     }
 
 # Startup event
@@ -104,18 +113,18 @@ async def startup():
         from services.embeddings import EmbeddingsService
         embeddings_service = EmbeddingsService(
             provider=settings.embeddings_provider,
-            api_key=settings.embeddings_api_key
+            api_key=settings.cohere_api_key
         )
         logger.info("Embeddings service initialized")
 
-        # Initialize OpenRouter client
-        logger.info("Step 5: Initializing OpenRouter client...")
-        from services.openrouter_service import OpenRouterClient
-        openrouter_client = OpenRouterClient(
-            api_key=settings.openrouter_api_key,
+        # Initialize Gemini client
+        logger.info("Step 5: Initializing Gemini client...")
+        from services.gemini_service import GeminiClient
+        gemini_client = GeminiClient(
+            api_key=settings.gemini_api_key,
             model_name=settings.model_name
         )
-        logger.info("OpenRouter client initialized")
+        logger.info("Gemini client initialized")
 
         # Initialize RAG agent
         logger.info("Step 6: Initializing RAG agent...")
@@ -142,11 +151,11 @@ async def startup():
         # Create sub-agents
         retrieval_agent = RetrievalSubAgent(vector_search)
         answer_agent = AnswerSubAgent(
-            synthesis_skill=GroundedSynthesisSkill(openrouter_client)
+            synthesis_skill=GroundedSynthesisSkill(gemini_client)
         )
         guardrails_agent = GuardrailsSubAgent(
             validation_skill=RetrievalValidationSkill(),
-            hallucination_skill=AntiHallucinationSkill(openrouter_client)
+            hallucination_skill=AntiHallucinationSkill(gemini_client)
         )
         selection_agent = SelectionModeSubAgent()
         memory_agent = MemorySubAgent()
@@ -167,7 +176,7 @@ async def startup():
             rag_agent=rag_agent,
             session_manager=session_manager,
             qdrant_retriever=qdrant_retriever,
-            openrouter_client=openrouter_client
+            gemini_client=gemini_client
         )
         logger.info("Dependencies injected into app.state")
 
