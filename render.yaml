@@ -1,60 +1,12 @@
 services:
   - type: web
-    name: bookrag-api
-    runtime: docker
-    plan: starter
-    region: oregon
-
-    # Docker build configuration
-    dockerfilePath: ./Dockerfile
-
-    # Port configuration for Render
+    name: book-rag-agent-backend
+    runtime: python
+    runtimeVersion: "3.11"
+    buildCommand: "pip install -r backend/requirements.txt"
+    startCommand: "gunicorn -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:$PORT backend.main:app"
     envVars:
-      - key: PORT
-        value: 10000
-      - key: HOST
-        value: 0.0.0.0
-
-      # Required environment variables (must be set in Render dashboard)
-      - key: QDRANT_URL
-        sync: false  # Set in Render dashboard
-      - key: QDRANT_API_KEY
-        sync: false  # Set in Render dashboard
-      - key: OPENROUTER_API_KEY
-        sync: false  # Set in Render dashboard
-      - key: DATABASE_URL
-        sync: false  # Set in Render dashboard
-      - key: COLLECTION_NAME
-        value: book-chunks
-      - key: MODEL_NAME
-        value: claude-3-5-sonnet
+      - key: PYTHON_VERSION
+        value: "3.11"
       - key: LOG_LEVEL
-        value: INFO
-
-    # Health check configuration
-    healthCheckPath: /health
-    healthCheckInterval: 30
-    healthCheckTimeout: 5
-    healthCheckStartPeriod: 60
-    healthCheckRetries: 3
-
-    # Build and deploy settings
-    buildCommand: pip install -r backend/requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port 10000
-
-    # Auto-deploy on push to main branch
-    autoDeploy: true
-    branch: main
-
-    # Resource allocation
-    numInstances: 1
-    memoryMB: 512
-
-    # Timeout settings
-    maxShutdownDelay: 30
-
-    # Disk configuration
-    disk:
-      name: data
-      sizeGB: 1
-      mountPath: /data
+        value: "INFO"

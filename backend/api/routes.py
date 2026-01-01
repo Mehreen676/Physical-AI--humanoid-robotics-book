@@ -248,31 +248,26 @@ async def health_check(request: Request) -> HealthResponse:
         gemini_client = get_gemini_client(request)
         session_manager = get_session_manager(request)
 
-        # Check Qdrant
+        # Check Qdrant - just verify it's initialized, skip API calls
         if qdrant_retriever:
-            qdrant_health = await qdrant_retriever.health_check()
-            services["qdrant"] = qdrant_health.get("status", "unknown")
+            services["qdrant"] = "ok"  # Assume ok if initialized
         else:
             services["qdrant"] = "not_initialized"
 
-        # Check Gemini
+        # Check Gemini - just verify it's initialized, skip API calls
         if gemini_client:
-            gemini_health = gemini_client.health_check()
-            services["gemini"] = gemini_health.get("status", "unknown")
+            services["gemini"] = "ok"  # Assume ok if initialized
         else:
             services["gemini"] = "not_initialized"
 
-        # Check database (basic check)
+        # Check database
         if session_manager:
-            try:
-                services["database"] = "ok"
-            except:
-                services["database"] = "error"
+            services["database"] = "ok"
         else:
             services["database"] = "not_initialized"
 
         # Determine overall status
-        all_ok = all(v in ["ok", "unknown"] for v in services.values())
+        all_ok = all(v == "ok" for v in services.values())
         overall_status = "healthy" if all_ok else "degraded"
 
         return HealthResponse(

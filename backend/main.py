@@ -92,7 +92,9 @@ async def startup():
         # Initialize session manager
         logger.info("Step 2: Initializing session manager...")
         from storage.sessions import SessionManager
-        engine = create_engine(settings.database_url)
+        from storage.init_db import clean_database_url
+        clean_url = clean_database_url(settings.database_url)
+        engine = create_engine(clean_url)
         SessionLocal = sessionmaker(bind=engine)
         db_session = SessionLocal()
         session_manager = SessionManager(db_session)
@@ -108,14 +110,27 @@ async def startup():
         )
         logger.info("Qdrant retriever initialized")
 
-        # Initialize embeddings service
+        # Initialize embeddings service with TF-IDF (no API rate limits)
         logger.info("Step 4: Initializing embeddings service...")
         from services.embeddings import EmbeddingsService
         embeddings_service = EmbeddingsService(
-            provider=settings.embeddings_provider,
-            api_key=settings.cohere_api_key
+            provider="tfidf",  # Use TF-IDF to avoid API rate limits
+            api_key=None
         )
-        logger.info("Embeddings service initialized")
+
+        # Fit vectorizer on indexed documents
+        try:
+            logger.info("  Retrieving indexed documents for vectorizer training...")
+            all_documents = await qdrant_retriever.get_all_documents()
+            if all_documents:
+                embeddings_service.fit_on_documents(all_documents)
+                logger.info(f"  ✓ Vectorizer fitted on {len(all_documents)} documents")
+            else:
+                logger.warning("  No documents found in Qdrant for vectorizer training")
+        except Exception as e:
+            logger.warning(f"  Could not pre-fit vectorizer: {e}")
+
+        logger.info("Embeddings service initialized (TF-IDF, no API limits)")
 
         # Initialize Gemini client
         logger.info("Step 5: Initializing Gemini client...")
