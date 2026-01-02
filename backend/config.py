@@ -71,24 +71,24 @@ class Settings(BaseSettings):
     def validate_qdrant_url(cls, v):
         """Validate Qdrant URL is configured."""
         if not v:
-            raise ValueError("QDRANT_URL is required")
-        return v
+            logger.warning("QDRANT_URL not set - vector search will not work")
+        return v or ""
 
     @field_validator("qdrant_api_key", mode="before")
     @classmethod
     def validate_qdrant_api_key(cls, v):
         """Validate Qdrant API key is configured."""
         if not v:
-            raise ValueError("QDRANT_API_KEY is required")
-        return v
+            logger.warning("QDRANT_API_KEY not set - vector search will not work")
+        return v or ""
 
     @field_validator("gemini_api_key", mode="before")
     @classmethod
     def validate_gemini_api_key(cls, v):
         """Validate Gemini API key is configured."""
         if not v:
-            raise ValueError("GEMINI_API_KEY is required")
-        return v
+            logger.warning("GEMINI_API_KEY not set - answer generation will not work")
+        return v or ""
 
     @field_validator("embeddings_api_key", mode="before")
     @classmethod
@@ -102,9 +102,10 @@ class Settings(BaseSettings):
     def validate_database_url(cls, v):
         """Validate database URL is configured."""
         if not v:
-            raise ValueError("DATABASE_URL is required")
+            logger.warning("DATABASE_URL not set - session storage will not work")
+            return ""
         if not (v.startswith("postgresql://") or v.startswith("postgresql+asyncpg://")):
-            raise ValueError("DATABASE_URL must be a PostgreSQL connection string")
+            logger.warning("DATABASE_URL should be a PostgreSQL connection string")
         return v
 
     @field_validator("similarity_threshold", mode="before")

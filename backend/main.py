@@ -80,35 +80,51 @@ async def startup():
     logger.info("BookRAGAgent starting up...")
 
     try:
-        # Initialize database
+        # Initialize database (optional - app can run without it)
         logger.info("Step 1: Initializing database...")
-        from storage.init_db import init_db
-        from sqlalchemy import create_engine
-        from sqlalchemy.orm import sessionmaker
+        session_manager = None
+        try:
+            from storage.init_db import init_db
+            from sqlalchemy import create_engine
+            from sqlalchemy.orm import sessionmaker
+            from storage.sessions import SessionManager
+            from storage.init_db import clean_database_url
 
-        init_db()
-        logger.info("Database initialized")
+            if settings.database_url:
+                init_db()
+                logger.info("Database initialized")
 
-        # Initialize session manager
-        logger.info("Step 2: Initializing session manager...")
-        from storage.sessions import SessionManager
-        from storage.init_db import clean_database_url
-        clean_url = clean_database_url(settings.database_url)
-        engine = create_engine(clean_url)
-        SessionLocal = sessionmaker(bind=engine)
-        db_session = SessionLocal()
-        session_manager = SessionManager(db_session)
-        logger.info("Session manager initialized")
+                # Initialize session manager
+                logger.info("Step 2: Initializing session manager...")
+                clean_url = clean_database_url(settings.database_url)
+                engine = create_engine(clean_url)
+                SessionLocal = sessionmaker(bind=engine)
+                db_session = SessionLocal()
+                session_manager = SessionManager(db_session)
+                logger.info("Session manager initialized")
+            else:
+                logger.warning("DATABASE_URL not set - skipping database initialization")
+        except Exception as e:
+            logger.warning(f"Database initialization failed (non-critical): {e}")
+            session_manager = None
 
         # Initialize Qdrant retriever
         logger.info("Step 3: Initializing Qdrant retriever...")
-        from rag.retrieval import QdrantRetriever
-        qdrant_retriever = QdrantRetriever(
-            qdrant_url=settings.qdrant_url,
-            api_key=settings.qdrant_api_key,
-            collection_name=settings.collection_name
-        )
-        logger.info("Qdrant retriever initialized")
+        qdrant_retriever = None
+        try:
+            from rag.retrieval import QdrantRetriever
+            if settings.qdrant_url and settings.qdrant_api_key:
+                qdrant_retriever = QdrantRetriever(
+                    qdrant_url=settings.qdrant_url,
+                    api_key=settings.qdrant_api_key,
+                    collection_name=settings.collection_name
+                )
+                logger.info("Qdrant retriever initialized (lazy connection)")
+            else:
+                logger.warning("Qdrant credentials not set - vector search disabled")
+        except Exception as e:
+            logger.warning(f"Qdrant initialization failed (non-critical): {e}")
+            qdrant_retriever = None
 
         # Initialize embeddings service
         logger.info("Step 4: Initializing embeddings service...")
@@ -126,7 +142,7 @@ async def startup():
         )
 
         # If using TF-IDF, fit vectorizer on indexed documents
-        if provider == "tfidf":
+        if provider == "tfidf" and qdrant_retriever:
             try:
                 logger.info("  Retrieving indexed documents for TF-IDF vectorizer training...")
                 all_documents = await qdrant_retriever.get_all_documents()
@@ -142,56 +158,75 @@ async def startup():
 
         # Initialize Gemini client
         logger.info("Step 5: Initializing Gemini client...")
-        from services.gemini_service import GeminiClient
-        gemini_client = GeminiClient(
-            api_key=settings.gemini_api_key,
-            model_name=settings.model_name
-        )
-        logger.info("Gemini client initialized")
+        gemini_client = None
+        try:
+            from services.gemini_service import GeminiClient
+            if settings.gemini_api_key:
+                gemini_client = GeminiClient(
+                    api_key=settings.gemini_api_key,
+                    model_name=settings.model_name
+                )
+                logger.info("Gemini client initialized")
+            else:
+                logger.warning("GEMINI_API_KEY not set - answer generation disabled")
+        except Exception as e:
+            logger.warning(f"Gemini initialization failed (non-critical): {e}")
+            gemini_client = None
 
-        # Initialize RAG agent
+        # Initialize RAG agent (only if core services available)
         logger.info("Step 6: Initializing RAG agent...")
-        from agent.agent import BookRAGAgent
-        from agent.sub_agents import (
-            RetrievalSubAgent, AnswerSubAgent, GuardrailsSubAgent,
-            SelectionModeSubAgent, MemorySubAgent
-        )
-        from rag.retrieval import VectorSearchSkill
-        from rag.grounding import (
-            GroundedSynthesisSkill, AntiHallucinationSkill,
-            RetrievalValidationSkill, SelectedTextOverrideSkill,
-            SessionPersistenceSkill
-        )
+        rag_agent = None
 
-        # Create vector search skill
-        vector_search = VectorSearchSkill(
-            retriever=qdrant_retriever,
-            embeddings_service=embeddings_service,
-            top_k=settings.retrieval_top_k,
-            similarity_threshold=settings.similarity_threshold
-        )
+        if not qdrant_retriever:
+            logger.error("Cannot initialize RAG agent: Qdrant retriever not available")
+        elif not gemini_client:
+            logger.error("Cannot initialize RAG agent: Gemini client not available")
+        else:
+            try:
+                from agent.agent import BookRAGAgent
+                from agent.sub_agents import (
+                    RetrievalSubAgent, AnswerSubAgent, GuardrailsSubAgent,
+                    SelectionModeSubAgent, MemorySubAgent
+                )
+                from rag.retrieval import VectorSearchSkill
+                from rag.grounding import (
+                    GroundedSynthesisSkill, AntiHallucinationSkill,
+                    RetrievalValidationSkill, SelectedTextOverrideSkill,
+                    SessionPersistenceSkill
+                )
 
-        # Create sub-agents
-        retrieval_agent = RetrievalSubAgent(vector_search)
-        answer_agent = AnswerSubAgent(
-            synthesis_skill=GroundedSynthesisSkill(gemini_client)
-        )
-        guardrails_agent = GuardrailsSubAgent(
-            validation_skill=RetrievalValidationSkill(),
-            hallucination_skill=AntiHallucinationSkill(gemini_client)
-        )
-        selection_agent = SelectionModeSubAgent()
-        memory_agent = MemorySubAgent()
+                # Create vector search skill
+                vector_search = VectorSearchSkill(
+                    retriever=qdrant_retriever,
+                    embeddings_service=embeddings_service,
+                    top_k=settings.retrieval_top_k,
+                    similarity_threshold=settings.similarity_threshold
+                )
 
-        # Create main RAG agent
-        rag_agent = BookRAGAgent(
-            retrieval_agent=retrieval_agent,
-            answer_agent=answer_agent,
-            guardrails_agent=guardrails_agent,
-            selection_mode_agent=selection_agent,
-            memory_agent=memory_agent
-        )
-        logger.info("RAG agent initialized")
+                # Create sub-agents
+                retrieval_agent = RetrievalSubAgent(vector_search)
+                answer_agent = AnswerSubAgent(
+                    synthesis_skill=GroundedSynthesisSkill(gemini_client)
+                )
+                guardrails_agent = GuardrailsSubAgent(
+                    validation_skill=RetrievalValidationSkill(),
+                    hallucination_skill=AntiHallucinationSkill(gemini_client)
+                )
+                selection_agent = SelectionModeSubAgent()
+                memory_agent = MemorySubAgent()
+
+                # Create main RAG agent
+                rag_agent = BookRAGAgent(
+                    retrieval_agent=retrieval_agent,
+                    answer_agent=answer_agent,
+                    guardrails_agent=guardrails_agent,
+                    selection_mode_agent=selection_agent,
+                    memory_agent=memory_agent
+                )
+                logger.info("RAG agent initialized")
+            except Exception as e:
+                logger.error(f"RAG agent initialization failed: {e}", exc_info=True)
+                rag_agent = None
 
         # Inject dependencies into app.state
         routes.set_dependencies(
@@ -203,7 +238,20 @@ async def startup():
         )
         logger.info("Dependencies injected into app.state")
 
-        logger.info("Configuration validated successfully")
+        # Log startup summary
+        logger.info("=" * 50)
+        logger.info("BookRAGAgent Startup Complete!")
+        logger.info(f"  ✓ Database: {'Connected' if session_manager else 'Disabled'}")
+        logger.info(f"  ✓ Qdrant: {'Connected' if qdrant_retriever else 'Disabled'}")
+        logger.info(f"  ✓ Embeddings: {settings.embeddings_provider}")
+        logger.info(f"  ✓ Gemini: {'Connected' if gemini_client else 'Disabled'}")
+        logger.info(f"  ✓ RAG Agent: {'Ready' if rag_agent else 'Disabled'}")
+        logger.info("=" * 50)
+
+        if not rag_agent:
+            logger.warning("RAG functionality disabled - check environment variables!")
+        else:
+            logger.info("All systems operational!")
 
     except ValueError as e:
         logger.error(f"⚠️  Configuration Error: {e}")
