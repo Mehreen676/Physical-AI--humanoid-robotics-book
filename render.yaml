@@ -10,3 +10,23 @@ services:
         value: "3.11"
       - key: LOG_LEVEL
         value: "INFO"
+      - key: EMBEDDINGS_PROVIDER
+        value: "tfidf"
+      - key: MODEL_NAME
+        value: "gemini-2.0-flash"
+      - key: COLLECTION_NAME
+        value: "Backend_chunks"
+      - key: RETRIEVAL_TOP_K
+        value: "5"
+      - key: SIMILARITY_THRESHOLD
+        value: "0.7"
+      - key: SESSION_RETENTION_DAYS
+        value: "90"
+      # Sensitive keys - add these via Render Dashboard instead
+      # QDRANT_URL (required - add in Render dashboard)
+      # QDRANT_API_KEY (required - add in Render dashboard)
+      # GEMINI_API_KEY (required - add in Render dashboard)
+      # DATABASE_URL (required - add in Render dashboard)
+      # COHERE_API_KEY (optional - only if using Cohere embeddings)
+      # FRONTEND_URL (required for CORS)
+      # ALLOWED_ORIGINS (required for CORS)
