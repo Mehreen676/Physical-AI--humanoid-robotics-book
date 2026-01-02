@@ -79,15 +79,25 @@ async def chat(chat_request: ChatRequest, request: Request) -> ChatResponse:
             response = await rag_agent.execute(chat_request)
             logger.info(f"RAG pipeline completed. Answer length: {len(response.answer)}")
         except Exception as e:
-            logger.error(f"RAG agent execution failed: {e}", exc_info=True)
-            # Return graceful fallback response instead of failing
-            logger.warning("Returning fallback response due to RAG execution failure")
+            error_msg = str(e)
+            logger.error(f"RAG agent execution failed: {error_msg}", exc_info=True)
+
+            # Provide more specific error messages based on the error type
+            if "Qdrant" in error_msg or "vector" in error_msg.lower():
+                user_message = "Unable to search the knowledge base. Please try again in a moment."
+            elif "embed" in error_msg.lower() or "cohere" in error_msg.lower():
+                user_message = "Unable to process your question at the moment. Please try again."
+            elif "Gemini" in error_msg or "API" in error_msg:
+                user_message = "Unable to generate an answer at the moment. Please try again."
+            else:
+                user_message = "I encountered an error while processing your question. Please try again."
+
+            logger.warning(f"Returning fallback response: {user_message}")
             response = ChatResponse(
-                answer="I encountered an error while processing your question. Please try again.",
+                answer=user_message,
                 citations=[],
                 retrieved_chunks=[]
             )
-            logger.info(f"Fallback response created. Returning to client.")
             return response
 
         # Store messages in session (non-blocking failure)

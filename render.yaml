@@ -11,7 +11,7 @@ services:
       - key: LOG_LEVEL
         value: "INFO"
       - key: EMBEDDINGS_PROVIDER
-        value: "tfidf"
+        value: "cohere"
       - key: MODEL_NAME
         value: "gemini-2.0-flash"
       - key: COLLECTION_NAME
@@ -27,6 +27,7 @@ services:
       # QDRANT_API_KEY (required - add in Render dashboard)
       # GEMINI_API_KEY (required - add in Render dashboard)
       # DATABASE_URL (required - add in Render dashboard)
-      # COHERE_API_KEY (optional - only if using Cohere embeddings)
+      # COHERE_API_KEY (required for Cohere embeddings - add in Render dashboard)
+      # COHERE_EMBEDDING_MODEL (optional - defaults to embed-english-light-v3.0)
       # FRONTEND_URL (required for CORS)
       # ALLOWED_ORIGINS (required for CORS)

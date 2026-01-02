@@ -110,27 +110,35 @@ async def startup():
         )
         logger.info("Qdrant retriever initialized")
 
-        # Initialize embeddings service with TF-IDF (no API rate limits)
+        # Initialize embeddings service
         logger.info("Step 4: Initializing embeddings service...")
         from services.embeddings import EmbeddingsService
+
+        # Use configured provider (Cohere or TF-IDF)
+        provider = settings.embeddings_provider
+        api_key = settings.embeddings_api_key if provider == "cohere" else None
+        model = settings.embeddings_model if provider == "cohere" else None
+
         embeddings_service = EmbeddingsService(
-            provider="tfidf",  # Use TF-IDF to avoid API rate limits
-            api_key=None
+            provider=provider,
+            api_key=api_key,
+            model=model
         )
 
-        # Fit vectorizer on indexed documents
-        try:
-            logger.info("  Retrieving indexed documents for vectorizer training...")
-            all_documents = await qdrant_retriever.get_all_documents()
-            if all_documents:
-                embeddings_service.fit_on_documents(all_documents)
-                logger.info(f"  ✓ Vectorizer fitted on {len(all_documents)} documents")
-            else:
-                logger.warning("  No documents found in Qdrant for vectorizer training")
-        except Exception as e:
-            logger.warning(f"  Could not pre-fit vectorizer: {e}")
+        # If using TF-IDF, fit vectorizer on indexed documents
+        if provider == "tfidf":
+            try:
+                logger.info("  Retrieving indexed documents for TF-IDF vectorizer training...")
+                all_documents = await qdrant_retriever.get_all_documents()
+                if all_documents:
+                    embeddings_service.fit_on_documents(all_documents)
+                    logger.info(f"  ✓ TF-IDF vectorizer fitted on {len(all_documents)} documents")
+                else:
+                    logger.warning("  No documents found in Qdrant for vectorizer training")
+            except Exception as e:
+                logger.warning(f"  Could not pre-fit TF-IDF vectorizer: {e}")
 
-        logger.info("Embeddings service initialized (TF-IDF, no API limits)")
+        logger.info(f"Embeddings service initialized (provider: {provider})")
 
         # Initialize Gemini client
         logger.info("Step 5: Initializing Gemini client...")
