@@ -120,6 +120,13 @@ class Settings(BaseSettings):
 try:
     settings = Settings()
     logger.info("Configuration loaded and validated successfully")
+    logger.info(f"  - Embeddings provider: {settings.embeddings_provider}")
+    logger.info(f"  - Model: {settings.model_name}")
+    logger.info(f"  - Collection: {settings.collection_name}")
 except ValueError as e:
     logger.error(f"Configuration validation failed: {e}")
+    logger.error("Please check environment variables in Render dashboard")
+    raise
+except Exception as e:
+    logger.error(f"Unexpected error loading configuration: {e}", exc_info=True)
     raise

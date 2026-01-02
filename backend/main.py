@@ -205,8 +205,14 @@ async def startup():
 
         logger.info("Configuration validated successfully")
 
+    except ValueError as e:
+        logger.error(f"⚠️  Configuration Error: {e}")
+        logger.error("Check environment variables in Render dashboard")
+        raise
     except Exception as e:
-        logger.error(f"Failed to initialize services: {e}", exc_info=True)
+        logger.error(f"❌ Failed to initialize services: {e}", exc_info=True)
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Error details: {str(e)[:500]}")
         raise
 
 # Shutdown event
