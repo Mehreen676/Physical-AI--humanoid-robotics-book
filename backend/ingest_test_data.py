@@ -78,7 +78,7 @@ async def ingest_data():
         embeddings_service = EmbeddingsService(
             provider="cohere",
             api_key=settings.embeddings_api_key,
-            model=settings.cohere_embedding_model
+            model=settings.embeddings_model
         )
 
         # Initialize Qdrant retriever

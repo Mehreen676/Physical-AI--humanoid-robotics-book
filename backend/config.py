@@ -48,9 +48,8 @@ class Settings(BaseSettings):
 
     # Embeddings Configuration
     embeddings_provider: str = Field(default="tfidf", env="EMBEDDINGS_PROVIDER")
-    embeddings_api_key: Optional[str] = Field(default=None, env="COHERE_API_KEY")
-    cohere_api_key: str = Field(default="", env="COHERE_API_KEY")
-    cohere_embedding_model: str = Field(default="embed-english-light-v3.0", env="COHERE_EMBEDDING_MODEL")
+    embeddings_api_key: str = Field(default="", env="COHERE_API_KEY")
+    embeddings_model: str = Field(default="embed-english-light-v3.0", env="COHERE_EMBEDDING_MODEL")
 
     # CORS Configuration
     frontend_url: str = Field(default="", env="FRONTEND_URL")
@@ -95,7 +94,8 @@ class Settings(BaseSettings):
     @classmethod
     def validate_embeddings_api_key(cls, v):
         """Embeddings API key is optional (TF-IDF doesn't need it)."""
-        return v
+        # Return empty string if None, allowing TF-IDF to work without API key
+        return v if v else ""
 
     @field_validator("database_url", mode="before")
     @classmethod

@@ -102,9 +102,9 @@ class Settings(BaseSettings):
     database_url: str
 
     # Embeddings Configuration
-    embeddings_provider: str = "cohere"
-    cohere_api_key: str
-    cohere_embedding_model: str
+    embeddings_provider: str = "tfidf"
+    embeddings_api_key: str
+    embeddings_model: str
 
     # CORS Configuration (NEW)
     frontend_url: str
