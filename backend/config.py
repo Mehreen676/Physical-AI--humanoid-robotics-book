@@ -41,13 +41,14 @@ class Settings(BaseSettings):
 
     # Google Gemini Configuration (LLM Provider)
     gemini_api_key: str = Field(default="", env="GEMINI_API_KEY")
-    model_name: str = Field(default="gemini-1.5-flash", env="MODEL_NAME")
+    model_name: str = Field(default="gemini-2.0-flash", env="MODEL_NAME")
 
     # Database Configuration (Neon PostgreSQL)
     database_url: str = Field(default="", env="DATABASE_URL")
 
     # Embeddings Configuration
-    embeddings_provider: str = Field(default="cohere", env="EMBEDDINGS_PROVIDER")
+    embeddings_provider: str = Field(default="tfidf", env="EMBEDDINGS_PROVIDER")
+    embeddings_api_key: Optional[str] = Field(default=None, env="COHERE_API_KEY")
     cohere_api_key: str = Field(default="", env="COHERE_API_KEY")
     cohere_embedding_model: str = Field(default="embed-english-light-v3.0", env="COHERE_EMBEDDING_MODEL")
 
@@ -90,12 +91,10 @@ class Settings(BaseSettings):
             raise ValueError("GEMINI_API_KEY is required")
         return v
 
-    @field_validator("cohere_api_key", mode="before")
+    @field_validator("embeddings_api_key", mode="before")
     @classmethod
-    def validate_cohere_api_key(cls, v):
-        """Validate Cohere API key is configured."""
-        if not v:
-            raise ValueError("COHERE_API_KEY is required")
+    def validate_embeddings_api_key(cls, v):
+        """Embeddings API key is optional (TF-IDF doesn't need it)."""
         return v
 
     @field_validator("database_url", mode="before")
