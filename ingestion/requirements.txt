@@ -1,0 +1,15 @@
+# Book Content Ingestion Pipeline Requirements
+
+# Environment management
+python-dotenv>=1.0.0
+
+# Google Gemini embeddings
+google-generativeai>=0.3.0
+
+# Qdrant vector database (Python 3.13 compatible)
+qdrant-client>=1.7.1
+
+# Token counting
+tiktoken>=0.5.0
+
+# Logging and utilities

@@ -121,7 +121,22 @@
       "WebFetch(domain:openrouter.ai)",
       "Bash(dir:*)",
       "mcp__github__get_me",
-      "Bash(npm run deploy:*)"
+      "Bash(npm run deploy:*)",
+      "Bash(git stash pop:*)",
+      "Bash(mkdir:*)",
+      "Bash(python ingest_book.py:*)",
+      "Bash(python test_search.py:*)",
+      "Bash(python -c:*)",
+      "Bash(python test_retrieval_quick.py:*)",
+      "Bash(python test_rag_agent.py:*)",
+      "Bash(wc:*)",
+      "Bash(npm install react-markdown)",
+      "Bash(Get-Process -Id 15864 -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object ProcessName, Id)",
+      "Bash(taskkill //F //PID 15864)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nRestructure project with modular architecture and comprehensive documentation\n\nMajor refactoring to improve code organization and maintainability:\n\n- Remove old backend implementation and replace with backend_v3\n- Add modular retrieval layer with Qdrant integration\n- Add ingestion pipeline for book content processing\n- Reorganize ChatWidget components into dedicated directory\n- Add comprehensive project documentation \\(guides, specs, ADRs\\)\n- Update environment configuration and dependencies\n- Add architectural decision records and implementation summaries\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git rm:*)",
+      "Bash(git rebase:*)"
     ]
   }
 }

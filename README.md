@@ -1,35 +1,52 @@
-# BookRAGAgent - Hallucination-Free RAG Chatbot
+# Physical AI & Humanoid Robotics Textbook - RAG Chatbot
 
-A FastAPI-based backend for a hallucination-free RAG (Retrieval-Augmented Generation) chatbot that answers questions about book content using Qdrant vector database and Claude 3.5 Sonnet LLM.
+A complete agentic RAG (Retrieval-Augmented Generation) system for an interactive educational textbook with embedded chat interface.
 
 ## Features
 
-- **Hallucination-Free Q&A**: Answers are grounded exclusively in retrieved book content
-- **Vector Search**: Semantic search using Qdrant vector database
+- **Agentic RAG Backend**: Multi-agent system with strict grounding (OpenAI Agents SDK / ChatKit)
+- **Embedded Chat Widget**: React-based interface integrated directly into Docusaurus book
+- **Hallucination-Free Q&A**: Answers grounded exclusively in retrieved book content
+- **Dual Retrieval Modes**: Normal (full-book) and selected-text (constrained) search
 - **Multi-Turn Conversations**: Session management with conversation history
-- **Selected Text Mode**: Focus retrieval on user-selected passages
-- **FastAPI Backend**: Async REST API with comprehensive error handling
-- **Docker Ready**: Production-ready containerization for Render deployment
+- **Dual Database Support**: SQLite (local) + Neon Serverless Postgres (production)
+- **Production-Ready**: Comprehensive error handling, logging, and deployment guides
+
+## Backend
+
+The canonical and production-ready backend is located in **`backend_v3/`**. See [CANONICAL_BACKEND_GUIDE.md](CANONICAL_BACKEND_GUIDE.md) for complete documentation.
 
 ## Project Structure
 
 ```
 text-book/
-├── backend/                    # FastAPI backend application
+├── backend_v3/                 # Production-ready backend
 │   ├── main.py                 # FastAPI app entry point
 │   ├── config.py               # Configuration management
-│   ├── requirements.txt         # Python dependencies
-│   ├── agent/                  # RAG agent and sub-agents
-│   ├── rag/                    # Retrieval and grounding skills
-│   ├── api/                    # API routes
-│   ├── services/               # External service integrations
-│   ├── storage/                # Database models and session management
+│   ├── requirements.txt        # Python dependencies
 │   ├── models/                 # Pydantic schemas
-│   └── utils/                  # Utility functions and error handling
-├── Dockerfile                   # Production Docker image definition
-├── render.yaml                  # Render deployment configuration
-├── .dockerignore                # Docker build context exclusions
-└── .env.example                 # Example environment variables
+│   ├── agent/                  # ChatKit agent + answer generation
+│   ├── api/                    # FastAPI routes
+│   ├── storage/                # SQLite + Neon Postgres
+│   └── utils/                  # Error handling + logging
+│
+├── front-end/                  # Docusaurus book + chat widget
+│   ├── docs/                   # Book content (MDX)
+│   └── src/components/ChatWidget/  # Embedded chat interface
+│
+├── retrieval/                  # Standalone retrieval layer
+│   ├── retriever.py            # Semantic search (Qdrant)
+│   ├── embeddings.py           # Gemini embeddings
+│   └── qdrant_client.py        # Vector database client
+│
+├── ingestion/                  # Book content ingestion
+│   ├── ingest_book.py          # Main ingestion script
+│   └── test_search.py          # Search validation
+│
+└── docs/                       # Documentation
+    ├── CANONICAL_BACKEND_GUIDE.md  # Backend setup guide
+    ├── IMPLEMENTATION_SUMMARY.md   # Deployment guide
+    └── PROJECT_ANALYSIS.md         # Complete project analysis
 ```
 
 ## Quick Start (Local Development)
@@ -37,177 +54,238 @@ text-book/
 ### Prerequisites
 
 - Python 3.11+
-- PostgreSQL (Neon)
-- Qdrant Cloud
-- OpenRouter API key
+- Node.js 18+ (for frontend)
+- Qdrant Cloud account
+- OpenAI API key
+- Gemini API key (for embeddings)
 
-### Setup
+### Backend Setup
 
-1. **Clone and install dependencies**:
+1. **Navigate to canonical backend**:
    ```bash
-   cd backend
+   cd backend_v3
+   ```
+
+2. **Install dependencies**:
+   ```bash
    pip install -r requirements.txt
    ```
 
-2. **Configure environment**:
+3. **Configure environment**:
+   Create `.env` file in `backend_v3/`:
    ```bash
-   cp ../.env.example ../.env
-   # Edit .env with your API keys and database URLs
+   OPENAI_API_KEY=sk-your-openai-key-here
+   OPENAI_MODEL=gpt-4-turbo-preview
+   QDRANT_URL=https://your-qdrant-instance.cloud.qdrant.io:6333
+   QDRANT_API_KEY=your_qdrant_api_key
+   GEMINI_API_KEY=your_gemini_api_key
+
+   # Optional - uses SQLite if not set
+   DATABASE_URL=postgresql://user:pass@neon.tech:5432/dbname
    ```
 
-3. **Start the server**:
+4. **Start the backend**:
    ```bash
    python main.py
    ```
 
    The API will be available at `http://localhost:8000`
 
-4. **Test endpoints**:
+5. **Test endpoints**:
    ```bash
-   # Create a session
-   curl -X POST http://localhost:8000/sessions
+   # Health check
+   curl http://localhost:8000/api/v1/health
 
-   # Check health
-   curl http://localhost:8000/health
+   # Create a session
+   curl -X POST http://localhost:8000/api/v1/sessions
+
+   # Send a question
+   curl -X POST http://localhost:8000/api/v1/chat \
+     -H "Content-Type: application/json" \
+     -d '{"question": "What is ROS 2?", "retrieval_mode": "normal"}'
    ```
 
-## Docker & Deployment
+### Frontend Setup
 
-### Local Docker Testing
+1. **Navigate to frontend**:
+   ```bash
+   cd front-end
+   ```
 
-Build and run the Docker image locally:
+2. **Install dependencies**:
+   ```bash
+   npm install
+   ```
 
-```bash
-# Build image
-docker build -t bookrag:latest .
+3. **Configure backend URL**:
+   Create `.env` file in `front-end/`:
+   ```bash
+   CHATBOT_BACKEND_URL=http://localhost:8000
+   ```
 
-# Run container
-docker run -p 10000:10000 \
-  -e DATABASE_URL=postgresql://... \
-  -e QDRANT_URL=https://... \
-  -e QDRANT_API_KEY=... \
-  -e OPENROUTER_API_KEY=... \
-  bookrag:latest
+4. **Start Docusaurus**:
+   ```bash
+   npm start
+   ```
 
-# Test health endpoint
-curl http://localhost:10000/health
+   The book will open at `http://localhost:3000`
 
-# View logs
-docker logs <container-id>
-```
+5. **Test chat widget**:
+   - Look for chat button in bottom-right corner
+   - Click to open chat panel
+   - Type a question and press Enter
+   - Verify response appears with citations
 
-### Docker Image Details
+## Deployment
 
-- **Base Image**: `python:3.11-slim` (lightweight, secure)
-- **Security**: Runs as non-root user (`appuser`)
-- **Port**: 10000 (for Render PaaS)
-- **Health Check**: GET `/health` endpoint
-- **Start Command**: `uvicorn main:app --host 0.0.0.0 --port 10000`
-
-### Render Deployment
+### Backend Deployment (Railway/Render)
 
 #### Prerequisites
 
-1. GitHub repository with Dockerfile
-2. Render account (https://render.com)
-3. Environment variables configured:
-   - `DATABASE_URL` (PostgreSQL)
-   - `QDRANT_URL` (Vector database)
-   - `QDRANT_API_KEY`
-   - `OPENROUTER_API_KEY`
-   - `COLLECTION_NAME` (default: `book-chunks`)
-   - `MODEL_NAME` (default: `claude-3-5-sonnet`)
+1. GitHub repository
+2. Railway or Render account
+3. Environment variables:
+   - `OPENAI_API_KEY` (required)
+   - `QDRANT_URL` (required)
+   - `QDRANT_API_KEY` (required)
+   - `GEMINI_API_KEY` (required)
+   - `DATABASE_URL` (optional - uses SQLite if not set)
+   - `OPENAI_MODEL` (optional - defaults to gpt-4-turbo-preview)
+
+#### Railway Deployment
+
+1. **Create Railway project**
+2. **Connect GitHub repository**
+3. **Set environment variables** in Railway dashboard
+4. **Deploy**:
+   ```bash
+   cd backend_v3
+   railway up
+   ```
+5. **Verify deployment**:
+   ```bash
+   curl https://your-app.railway.app/api/v1/health
+   ```
+
+#### Render Deployment
+
+1. **Create Render web service**
+2. **Connect GitHub repository**
+3. **Set root directory**: `backend_v3`
+4. **Set start command**: `python main.py`
+5. **Set environment variables** in Render dashboard
+6. **Deploy** (automatic on push to main branch)
+7. **Verify deployment**:
+   ```bash
+   curl https://your-app.onrender.com/api/v1/health
+   ```
+
+### Frontend Deployment (GitHub Pages)
+
+#### Prerequisites
+
+1. Backend deployed and accessible
+2. GitHub Pages enabled for repository
+3. Environment variable `CHATBOT_BACKEND_URL` set in GitHub Secrets
 
 #### Deployment Steps
 
-1. **Connect GitHub Repository**:
-   - Log in to Render Dashboard
-   - Click "New +" → "Web Service"
-   - Select your GitHub repository
-   - Grant Render access to your repos
+1. **Set GitHub Secret**:
+   - Go to **Settings** → **Secrets and variables** → **Actions**
+   - Add `CHATBOT_BACKEND_URL` with your backend URL
 
-2. **Configure Service**:
-   - **Name**: `bookrag-api`
-   - **Environment**: Docker
-   - **Region**: Oregon (or closest to you)
-   - **Plan**: Starter or Standard
-
-3. **Set Environment Variables**:
-   - Click "Environment" tab
-   - Add each required environment variable
-   - **Critical**: Don't commit `.env` file - set in Render dashboard only
-
-4. **Configure Build & Deploy**:
-   - **Docker filepath**: `Dockerfile` (auto-detected)
-   - **Auto-deploy**: Enable to auto-deploy on main branch push
-
-5. **Deploy**:
-   - Click "Create Web Service"
-   - Wait for build to complete (2-3 minutes)
-   - Render assigns unique URL (e.g., `https://bookrag-api.onrender.com`)
-
-6. **Verify Deployment**:
-   ```bash
-   curl https://bookrag-api.onrender.com/health
+2. **Update backend CORS** in `backend_v3/config.py`:
+   ```python
+   CORS_ORIGINS = [
+       "https://your-username.github.io",  # Production
+   ]
    ```
 
-#### Post-Deployment Verification
+3. **Build and deploy**:
+   ```bash
+   cd front-end
+   npm run build
+   npm run deploy
+   ```
 
-```bash
-# Test health endpoint
-curl https://your-service.onrender.com/health
+4. **Verify deployment**:
+   - Visit your GitHub Pages URL
+   - Test chat widget functionality
 
-# Create a session
-curl -X POST https://your-service.onrender.com/sessions
-
-# Check logs in Render Dashboard
-# → Logs tab shows real-time server output
-```
 
 ## API Endpoints
 
 ### Health Check
 ```
-GET /health
-Response: { "status": "healthy", "services": {...} }
+GET /api/v1/health
+Response: { "status": "healthy" }
 ```
 
 ### Sessions
 ```
-POST /sessions
-Response: { "session_id": "uuid", "created_at": "timestamp" }
+POST /api/v1/sessions
+Response: { "session_id": "session-123", "created_at": "2026-01-03T..." }
 
-GET /sessions/{session_id}
-Response: { "session_id": "uuid", "messages": [...] }
+GET /api/v1/sessions/{session_id}
+Response: {
+  "session_id": "session-123",
+  "turns": [{"question": "...", "answer": "...", "created_at": "..."}]
+}
 ```
 
 ### Chat
 ```
-POST /chat
+POST /api/v1/chat
 Body: {
-  "session_id": "uuid",
-  "question": "Your question here",
-  "retrieval_mode": "normal"
+  "session_id": "session-123",
+  "question": "What is ROS 2?",
+  "retrieval_mode": "normal",
+  "selected_text": null
 }
 Response: {
-  "answer": "Grounded answer from book content",
-  "citations": [{"section": "...", "url": "..."}]
+  "session_id": "session-123",
+  "answer": "ROS 2 is... [Chapter 1, Section 1.2]",
+  "citations": [
+    {
+      "chapter": "Chapter 1",
+      "section": "Section 1.2",
+      "text_snippet": "...",
+      "score": 0.85
+    }
+  ],
+  "retrieval_mode": "normal",
+  "grounded": true,
+  "metadata": {
+    "latency_ms": 3300,
+    "num_chunks": 5,
+    "is_refusal": false
+  }
 }
 ```
 
-## Environment Variables
+## Configuration
 
-See `.env.example` for complete list. Key variables:
+### Backend Environment Variables
 
-| Variable | Required | Example |
-|----------|----------|---------|
-| `DATABASE_URL` | Yes | `postgresql://user:pass@host/db` |
-| `QDRANT_URL` | Yes | `https://xxx.gcp.cloud.qdrant.io:6333` |
-| `QDRANT_API_KEY` | Yes | `your-key-here` |
-| `OPENROUTER_API_KEY` | Yes | `sk-or-xxx` |
-| `COLLECTION_NAME` | No | `book-chunks` |
-| `MODEL_NAME` | No | `claude-3-5-sonnet` |
-| `PORT` | No | `10000` (Render) or `8000` (local) |
+See `backend_v3/.env.example` for complete list. Key variables:
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `OPENAI_API_KEY` | Yes | - | OpenAI API key (sk-...) |
+| `QDRANT_URL` | Yes | - | Qdrant Cloud URL |
+| `QDRANT_API_KEY` | Yes | - | Qdrant API key |
+| `GEMINI_API_KEY` | Yes | - | Google Gemini API key |
+| `DATABASE_URL` | No | SQLite | Neon Postgres connection string |
+| `OPENAI_MODEL` | No | gpt-4-turbo-preview | OpenAI model to use |
+| `API_HOST` | No | 0.0.0.0 | API host binding |
+| `API_PORT` | No | 8000 | API port |
+| `LOG_LEVEL` | No | INFO | Logging level |
+
+### Frontend Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `CHATBOT_BACKEND_URL` | Yes | http://localhost:8000 | Backend API URL |
 
 ## Troubleshooting
 
@@ -239,7 +317,7 @@ See `.env.example` for complete list. Key variables:
 ### Running Tests
 
 ```bash
-cd backend
+cd backend_v3
 pytest tests/ -v --cov=.
 ```
 
