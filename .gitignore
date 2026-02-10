@@ -7,7 +7,7 @@
 venv/
 env/
 ENV/
-.venv
+.venv/
 
 # IDE
 .vscode/
@@ -20,27 +20,12 @@ ENV/
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
 *.so
 .Python
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
 .eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
 *.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
 
 # Testing
 .pytest_cache/
@@ -56,8 +41,17 @@ htmlcov/
 *.log
 logs/
 
-# Dependencies
-*.txt.bak
+# Node
 node_modules/
-.env
-.env.example
+# Docusaurus generated
+front-end/.docusaurus/
+front-end/build/
+
+# Node caches
+front-end/node_modules/
+front-end/node_modules/.cache/
+front-end/.cache/
+front-end/.package-lock.json
+
+# OS
+Thumbs.db

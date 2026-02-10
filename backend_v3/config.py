@@ -19,13 +19,22 @@ class Config(BaseModel):
     database_url: str = Field(default_factory=lambda: os.getenv("DATABASE_URL", ""))
     sqlite_db_path: str = Field(default_factory=lambda: os.getenv("SQLITE_DB_PATH", "chatbot.db"))
 
-    # Retrieval Configuration (reuse from existing system)
+    # Retrieval Configuration
     qdrant_url: str = Field(default_factory=lambda: os.getenv("QDRANT_URL", ""))
     qdrant_api_key: str = Field(default_factory=lambda: os.getenv("QDRANT_API_KEY", ""))
     collection_name: str = Field(default_factory=lambda: os.getenv("COLLECTION_NAME", "data_collection"))
 
-    # Gemini Configuration
+    # Gemini Configuration (keys)
     gemini_api_key: str = Field(default_factory=lambda: os.getenv("GEMINI_API_KEY", ""))
+
+    # Embeddings config (IMPORTANT FIX)
+    # Use gemini-embedding-001 (text-embedding-004 deprecated)
+    gemini_embedding_model: str = Field(
+        default_factory=lambda: os.getenv("GEMINI_EMBEDDING_MODEL", "models/gemini-embedding-001")
+    )
+    embedding_dim: int = Field(default_factory=lambda: int(os.getenv("EMBEDDING_DIM", "768")))
+
+    # Optional: mock embeddings
     use_mock_embeddings: bool = Field(
         default_factory=lambda: os.getenv("USE_MOCK_EMBEDDINGS", "false").lower() == "true"
     )
@@ -38,10 +47,7 @@ class Config(BaseModel):
         required = {
             "gemini_api_key": self.gemini_api_key,
             "qdrant_url": self.qdrant_url,
-            "qdrant_api_key": self.qdrant_api_key,
         }
-
-        # Database URL optional (will use SQLite if not provided)
 
         missing = [k for k, v in required.items() if not v]
         if missing:

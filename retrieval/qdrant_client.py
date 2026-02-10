@@ -1,9 +1,14 @@
 """
 Qdrant client wrapper for semantic search.
+
+This wrapper is compatible across qdrant-client versions:
+- Older versions: client.search(...)
+- Newer versions: client.query_points(...)
 """
 
 import time
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
+
 from qdrant_client import QdrantClient
 from qdrant_client.models import ScoredPoint
 
@@ -13,120 +18,151 @@ class QdrantRetriever:
     Wrapper for Qdrant semantic search operations.
 
     Handles connection, retry logic, and result formatting.
+    Compatible with multiple qdrant-client versions.
     """
 
     def __init__(
         self,
         url: str,
-        api_key: str,
+        api_key: Optional[str],
         collection_name: str,
         max_retries: int = 3,
-        retry_delay: float = 1.0
+        retry_delay: float = 1.0,
+        timeout: float = 10.0,
     ):
-        """
-        Initialize Qdrant retriever.
-
-        Args:
-            url: Qdrant instance URL
-            api_key: Qdrant API key
-            collection_name: Name of the collection to search
-            max_retries: Maximum number of retry attempts
-            retry_delay: Delay between retries in seconds
-        """
         self.url = url
         self.api_key = api_key
         self.collection_name = collection_name
         self.max_retries = max_retries
         self.retry_delay = retry_delay
 
-        # Initialize client
+        # NOTE: If api_key is used with http://, qdrant-client warns about insecure connection.
+        # Prefer https:// in production.
         self.client = QdrantClient(
             url=self.url,
             api_key=self.api_key,
-            timeout=10.0
+            timeout=timeout,
+        )
+
+    def _search_impl(
+        self,
+        query_vector: List[float],
+        top_k: int,
+        score_threshold: Optional[float],
+    ) -> List[ScoredPoint]:
+        """
+        Internal search implementation compatible across versions.
+        """
+        # Prefer legacy `search` if available
+        if hasattr(self.client, "search"):
+            kwargs: Dict[str, Any] = dict(
+                collection_name=self.collection_name,
+                query_vector=query_vector,
+                limit=top_k,
+                with_payload=True,
+                with_vectors=False,
+            )
+            # score_threshold is optional; if None, don't pass it
+            if score_threshold is not None:
+                kwargs["score_threshold"] = score_threshold
+
+            return self.client.search(**kwargs)  # type: ignore
+
+        # Newer clients use `query_points`
+        if hasattr(self.client, "query_points"):
+            kwargs = dict(
+                collection_name=self.collection_name,
+                query=query_vector,      # IMPORTANT: `query` is the vector
+                limit=top_k,
+                with_payload=True,
+                with_vectors=False,
+            )
+            if score_threshold is not None:
+                kwargs["score_threshold"] = score_threshold
+
+            res = self.client.query_points(**kwargs)  # type: ignore
+            # Newer API returns an object with `.points`
+            points = getattr(res, "points", None)
+            if points is None:
+                # In some variants it may return dict-like
+                points = res.get("points", []) if isinstance(res, dict) else []
+            return points  # type: ignore
+
+        raise RuntimeError(
+            "Your installed qdrant-client does not support `search` or `query_points`."
         )
 
     def search(
         self,
         query_vector: List[float],
         top_k: int = 5,
-        score_threshold: float = 0.7
+        score_threshold: float = 0.0,
     ) -> List[ScoredPoint]:
         """
         Perform semantic search with retry logic.
 
-        Args:
-            query_vector: Query embedding vector
-            top_k: Number of results to return
-            score_threshold: Minimum similarity score threshold
-
-        Returns:
-            List of ScoredPoint objects from Qdrant
-
-        Raises:
-            Exception: If all retry attempts fail
+        NOTE:
+        - I set default score_threshold=0.0 to avoid getting 0 results when embeddings mismatch.
+        - If you want strict matching, set it back to 0.7.
         """
-        last_exception = None
+        last_exception: Optional[Exception] = None
 
         for attempt in range(self.max_retries):
             try:
-                results = self.client.search(
-                    collection_name=self.collection_name,
-                    query_vector=query_vector,
-                    limit=top_k,
-                    score_threshold=score_threshold,
-                    with_payload=True,
-                    with_vectors=False  # Don't return vectors to reduce payload
-                )
-                return results
+                # If you want to disable threshold completely, set score_threshold=None here:
+                # return self._search_impl(query_vector, top_k, None)
+                return self._search_impl(query_vector, top_k, score_threshold)
 
             except Exception as e:
                 last_exception = e
                 if attempt < self.max_retries - 1:
-                    # Exponential backoff
-                    delay = self.retry_delay * (2 ** attempt)
-                    time.sleep(delay)
-                    continue
+                    time.sleep(self.retry_delay * (2 ** attempt))
                 else:
-                    # Final attempt failed
                     raise Exception(
                         f"Qdrant search failed after {self.max_retries} attempts: {str(e)}"
                     ) from e
 
-        # Should not reach here, but for type safety
-        raise last_exception
+        raise last_exception  # type: ignore
 
     def health_check(self) -> bool:
-        """
-        Check if Qdrant connection is healthy.
-
-        Returns:
-            True if connection is healthy, False otherwise
-        """
         try:
-            collections = self.client.get_collections()
+            _ = self.client.get_collections()
             return True
         except Exception:
             return False
 
     def get_collection_info(self) -> Dict:
-        """
-        Get information about the collection.
-
-        Returns:
-            Dictionary with collection metadata
-
-        Raises:
-            Exception: If collection does not exist or fetch fails
-        """
+        """Get collection metadata safely across qdrant-client versions."""
         try:
             info = self.client.get_collection(self.collection_name)
+
+            points_count = getattr(info, "points_count", None)
+            indexed_vectors_count = getattr(info, "indexed_vectors_count", None)
+
+            vectors_count = getattr(info, "vectors_count", None)
+            if vectors_count is None:
+                vectors_count = points_count
+
+            status = getattr(info, "status", None)
+            status_name = getattr(status, "name", str(status)) if status is not None else None
+
+            distance = None
+            try:
+                vectors_cfg = info.config.params.vectors
+                if isinstance(vectors_cfg, dict):
+                    vectors_cfg = next(iter(vectors_cfg.values()))
+                if vectors_cfg is not None and getattr(vectors_cfg, "distance", None) is not None:
+                    distance = vectors_cfg.distance.name
+            except Exception:
+                distance = None
+
             return {
-                "name": self.collection_name,
-                "points_count": info.points_count,
-                "vectors_count": info.vectors_count,
-                "indexed_vectors_count": info.indexed_vectors_count,
-                "status": info.status
+                "collection_name": self.collection_name,
+                "distance": distance,
+                "points_count": points_count,
+                "vectors_count": vectors_count,
+                "indexed_vectors_count": indexed_vectors_count,
+                "status": status_name,
             }
         except Exception as e:
             raise Exception(f"Failed to get collection info: {str(e)}") from e

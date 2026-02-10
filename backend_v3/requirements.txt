@@ -3,16 +3,22 @@ fastapi==0.109.0
 uvicorn[standard]==0.27.0
 python-multipart==0.0.6
 
-# Google Gemini AI (FREE)
-google-generativeai==0.3.2
+# Env
 python-dotenv==1.0.0
 
+# Google Gemini (agent)
+google-generativeai==0.3.2
+
 # Database
-psycopg2-binary==2.9.9
+psycopg2-binary==2.9.11
 
 # Pydantic for validation
 pydantic==2.5.3
 pydantic-settings==2.1.0
 
-# Retrieval dependencies (shared with retrieval/)
-# These are needed for the retrieval layer integration
+# Retrieval
+qdrant-client>=1.7.0
+numpy>=1.26.0
+
+# NEW: direct REST call for embeddings (stable)
+requests>=2.31.0

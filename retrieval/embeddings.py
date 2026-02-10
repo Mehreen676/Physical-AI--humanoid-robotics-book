@@ -1,163 +1,123 @@
 """
 Embedding service with support for Gemini and Mock embeddings.
+Uses direct REST call for embeddings (stable).
+
+Model: models/gemini-embedding-001
+Endpoint: v1beta/models/{model}:embedContent
 """
 
+import os
 import time
 import hashlib
 import numpy as np
 from abc import ABC, abstractmethod
 from typing import List
-import google.generativeai as genai
+import requests
 
 
 class EmbeddingService(ABC):
-    """Abstract base class for embedding services."""
-
     @abstractmethod
     def embed_query(self, text: str) -> List[float]:
-        """
-        Generate embedding for query text.
-
-        Args:
-            text: Input text to embed
-
-        Returns:
-            List of floats representing the embedding vector
-        """
         pass
 
     @property
     @abstractmethod
     def dimension(self) -> int:
-        """Return embedding dimension."""
         pass
 
 
+def _normalize_model(name: str) -> str:
+    n = (name or "").strip()
+    if not n:
+        n = "models/gemini-embedding-001"
+    if not (n.startswith("models/") or n.startswith("tunedModels/")):
+        n = "models/" + n
+    return n
+
+
 class GeminiEmbeddings(EmbeddingService):
-    """
-    Gemini embeddings-001 service.
-
-    Free tier limits:
-    - 1,500 requests per day
-    - 15 requests per minute
-    """
-
     def __init__(self, api_key: str):
-        """
-        Initialize Gemini embeddings service.
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY missing")
 
-        Args:
-            api_key: Google Gemini API key
-        """
         self.api_key = api_key
-        self.model = "models/embedding-001"
-        self._dimension = 768
-        self._min_request_interval = 4.0  # 15 req/min = 1 req per 4 seconds
+
+        # ✅ Force correct model (env optional)
+        self.model = _normalize_model(os.getenv("GEMINI_EMBEDDING_MODEL", "models/gemini-embedding-001"))
+
+        # free tier safety
+        self._min_request_interval = 4.0
         self._last_request_time = 0.0
 
-        # Configure Gemini
-        genai.configure(api_key=self.api_key)
+        # most common dim
+        self._dimension = int(os.getenv("EMBEDDING_DIM", "768"))
 
-    def _enforce_rate_limit(self) -> None:
-        """Enforce rate limiting to stay within free tier."""
+        model_id = self.model.split("/", 1)[1]  # remove "models/"
+        self._url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:embedContent"
+
+    def _enforce_rate_limit(self):
         elapsed = time.time() - self._last_request_time
         if elapsed < self._min_request_interval:
             time.sleep(self._min_request_interval - elapsed)
         self._last_request_time = time.time()
 
     def embed_query(self, text: str) -> List[float]:
-        """
-        Generate embedding using Gemini.
-
-        Args:
-            text: Input text to embed
-
-        Returns:
-            768-dimensional embedding vector
-
-        Raises:
-            Exception: If API call fails
-        """
         self._enforce_rate_limit()
 
-        result = genai.embed_content(
-            model=self.model,
-            content=text,
-            task_type="retrieval_query"
-        )
+        headers = {
+            "Content-Type": "application/json",
+            "x-goog-api-key": self.api_key,
+        }
 
-        return result['embedding']
+        payload = {
+            "model": self.model,
+            "content": {"parts": [{"text": text}]},
+            "output_dimensionality": self._dimension,
+        }
+
+        r = requests.post(self._url, headers=headers, json=payload, timeout=30)
+        if r.status_code >= 400:
+            raise RuntimeError(f"embedContent failed ({r.status_code}): {r.text}")
+
+        data = r.json()
+
+        # Expected: {"embedding":{"values":[...]}}
+        emb = None
+        if isinstance(data, dict):
+            e = data.get("embedding")
+            if isinstance(e, dict):
+                emb = e.get("values")
+
+        if not emb:
+            raise RuntimeError(f"Unexpected embedding response: {data}")
+
+        return emb
 
     @property
     def dimension(self) -> int:
-        """Return embedding dimension."""
         return self._dimension
 
 
 class MockEmbeddings(EmbeddingService):
-    """
-    Mock embedding service for testing.
-
-    Uses MD5 hash + numpy random with fixed seed for deterministic embeddings.
-    """
-
     def __init__(self, dimension: int = 768):
-        """
-        Initialize mock embeddings service.
-
-        Args:
-            dimension: Embedding dimension (default: 768 to match Gemini)
-        """
         self._dimension = dimension
 
     def embed_query(self, text: str) -> List[float]:
-        """
-        Generate deterministic mock embedding.
-
-        Args:
-            text: Input text to embed
-
-        Returns:
-            768-dimensional mock embedding vector
-        """
-        # Use MD5 hash as seed for determinism
-        hash_obj = hashlib.md5(text.encode('utf-8'))
+        hash_obj = hashlib.md5(text.encode("utf-8"))
         seed = int(hash_obj.hexdigest(), 16) % (2**32)
-
-        # Generate deterministic random vector
         rng = np.random.RandomState(seed)
-        embedding = rng.randn(self._dimension)
-
-        # Normalize to unit length (for cosine similarity)
-        norm = np.linalg.norm(embedding)
-        if norm > 0:
-            embedding = embedding / norm
-
-        return embedding.tolist()
+        v = rng.randn(self._dimension)
+        n = np.linalg.norm(v)
+        if n > 0:
+            v = v / n
+        return v.tolist()
 
     @property
     def dimension(self) -> int:
-        """Return embedding dimension."""
         return self._dimension
 
 
 def get_embedding_service(use_mock: bool = False, api_key: str = "") -> EmbeddingService:
-    """
-    Factory function to create appropriate embedding service.
-
-    Args:
-        use_mock: If True, use MockEmbeddings; otherwise use GeminiEmbeddings
-        api_key: Gemini API key (required if use_mock=False)
-
-    Returns:
-        EmbeddingService instance
-
-    Raises:
-        ValueError: If use_mock=False and api_key is empty
-    """
     if use_mock:
         return MockEmbeddings()
-    else:
-        if not api_key:
-            raise ValueError("api_key is required for GeminiEmbeddings")
-        return GeminiEmbeddings(api_key)
+    return GeminiEmbeddings(api_key)
