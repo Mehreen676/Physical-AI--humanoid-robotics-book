@@ -1,23 +1,18 @@
+﻿# =========================
 # Environment variables
+# =========================
 .env
 .env.local
 .env.*.local
 
-# Virtual environments
+# =========================
+# Python / Virtual env
+# =========================
 venv/
 env/
 ENV/
 .venv/
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-
-# Python
 __pycache__/
 *.py[cod]
 *.so
@@ -32,26 +27,50 @@ dist/
 .coverage
 htmlcov/
 
+# =========================
 # Database
+# =========================
 *.db
 *.sqlite
 *.sqlite3
 
+# =========================
 # Logs
+# =========================
 *.log
 logs/
 
-# Node
+# =========================
+# IDE / OS
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# =========================
+# Node / Docusaurus / Next
+# =========================
 node_modules/
-# Docusaurus generated
+**/node_modules/
+**/.cache/
+**/.docusaurus/
+**/build/
+**/dist/
+**/.next/
+
+# Docusaurus specific
 front-end/.docusaurus/
 front-end/build/
 
-# Node caches
+# Node caches (explicit)
 front-end/node_modules/
 front-end/node_modules/.cache/
 front-end/.cache/
-front-end/.package-lock.json
 
-# OS
-Thumbs.db
+# Lock files (optional - agar tum commit nahi karna chahte)
+# NOTE: Agar package-lock.json use hota hai to is line ko comment kar do
+front-end/.package-lock.json
