@@ -1,29 +1,17 @@
-"""
-Embedding service with support for Gemini and Mock embeddings.
-Uses direct REST call for embeddings (stable).
-
-Model: models/gemini-embedding-001
-Endpoint: v1beta/models/{model}:embedContent
-"""
+﻿from __future__ import annotations
 
 import os
 import time
 import hashlib
-import numpy as np
-from abc import ABC, abstractmethod
-from typing import List
+from dataclasses import dataclass
+from typing import List, Optional, Any, Dict
+
 import requests
 
-
-class EmbeddingService(ABC):
-    @abstractmethod
-    def embed_query(self, text: str) -> List[float]:
-        pass
-
-    @property
-    @abstractmethod
-    def dimension(self) -> int:
-        pass
+try:
+    import numpy as np
+except Exception:
+    np = None
 
 
 def _normalize_model(name: str) -> str:
@@ -35,89 +23,157 @@ def _normalize_model(name: str) -> str:
     return n
 
 
-class GeminiEmbeddings(EmbeddingService):
-    def __init__(self, api_key: str):
-        if not api_key:
-            raise ValueError("GEMINI_API_KEY missing")
+def _env_bool(key: str, default: bool = False) -> bool:
+    v = os.getenv(key)
+    if v is None:
+        return default
+    return v.strip().lower() in ("1", "true", "yes", "y", "on")
 
-        self.api_key = api_key
 
-        # ✅ Force correct model (env optional)
-        self.model = _normalize_model(os.getenv("GEMINI_EMBEDDING_MODEL", "models/gemini-embedding-001"))
+@dataclass
+class EmbeddingConfig:
+    api_key: str
+    model: str
+    dimension: int = 3072
+    timeout_s: int = 30
+    max_retries: int = 6
+    base_backoff_s: float = 0.8
+    max_backoff_s: float = 8.0
 
-        # free tier safety
-        self._min_request_interval = 4.0
-        self._last_request_time = 0.0
 
-        # most common dim
-        self._dimension = int(os.getenv("EMBEDDING_DIM", "768"))
+class GeminiEmbeddingService:
+    """
+    Backend retrieval embedding service.
+    Must expose:
+      - embed_query(text) -> List[float]
+      - (optional) embed_text / embed aliases
+      - dimension
+    """
 
-        model_id = self.model.split("/", 1)[1]  # remove "models/"
-        self._url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:embedContent"
+    def __init__(self, cfg: EmbeddingConfig):
+        self.api_key = cfg.api_key
+        self.model = cfg.model
+        self.dimension = cfg.dimension
+        self.timeout_s = cfg.timeout_s
+        self.max_retries = cfg.max_retries
+        self.base_backoff_s = cfg.base_backoff_s
+        self.max_backoff_s = cfg.max_backoff_s
 
-    def _enforce_rate_limit(self):
-        elapsed = time.time() - self._last_request_time
-        if elapsed < self._min_request_interval:
-            time.sleep(self._min_request_interval - elapsed)
-        self._last_request_time = time.time()
+        model_id = self.model.split("/", 1)[1]
+        self.url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:embedContent"
+
+    def _should_retry(self, status: int) -> bool:
+        return status in (429, 500, 502, 503, 504)
 
     def embed_query(self, text: str) -> List[float]:
-        self._enforce_rate_limit()
-
-        headers = {
-            "Content-Type": "application/json",
-            "x-goog-api-key": self.api_key,
-        }
-
-        payload = {
+        headers = {"Content-Type": "application/json", "x-goog-api-key": self.api_key}
+        payload: Dict[str, Any] = {
             "model": self.model,
             "content": {"parts": [{"text": text}]},
-            "output_dimensionality": self._dimension,
+            "output_dimensionality": self.dimension,
         }
 
-        r = requests.post(self._url, headers=headers, json=payload, timeout=30)
-        if r.status_code >= 400:
-            raise RuntimeError(f"embedContent failed ({r.status_code}): {r.text}")
+        last_err: Optional[str] = None
 
-        data = r.json()
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                r = requests.post(self.url, headers=headers, json=payload, timeout=self.timeout_s)
 
-        # Expected: {"embedding":{"values":[...]}}
-        emb = None
-        if isinstance(data, dict):
-            e = data.get("embedding")
-            if isinstance(e, dict):
-                emb = e.get("values")
+                if r.status_code >= 400:
+                    # retryable?
+                    if self._should_retry(r.status_code):
+                        last_err = f"embedContent failed ({r.status_code}): {r.text}"
+                        backoff = min(self.max_backoff_s, self.base_backoff_s * (2 ** (attempt - 1)))
+                        time.sleep(backoff)
+                        continue
 
-        if not emb:
-            raise RuntimeError(f"Unexpected embedding response: {data}")
+                    raise RuntimeError(f"embedContent failed ({r.status_code}): {r.text}")
 
-        return emb
+                data = r.json()
+                if not isinstance(data, dict) or "embedding" not in data:
+                    raise RuntimeError(f"Unexpected embedding response: {data}")
 
-    @property
-    def dimension(self) -> int:
-        return self._dimension
+                emb = data["embedding"]
+                if not isinstance(emb, dict) or "values" not in emb:
+                    raise RuntimeError(f"Unexpected embedding response: {data}")
+
+                values = emb["values"]
+                if not isinstance(values, list) or not values:
+                    raise RuntimeError(f"Unexpected embedding response: {data}")
+
+                return values
+
+            except requests.RequestException as e:
+                last_err = f"Request error: {e}"
+                backoff = min(self.max_backoff_s, self.base_backoff_s * (2 ** (attempt - 1)))
+                time.sleep(backoff)
+
+        raise RuntimeError(last_err or "embedContent failed after retries")
+
+    # aliases (some code calls these)
+    def embed_text(self, text: str) -> List[float]:
+        return self.embed_query(text)
+
+    def embed(self, text: str) -> List[float]:
+        return self.embed_query(text)
 
 
-class MockEmbeddings(EmbeddingService):
-    def __init__(self, dimension: int = 768):
-        self._dimension = dimension
+class MockEmbeddingService:
+    def __init__(self, dimension: int = 3072):
+        self.dimension = dimension
 
     def embed_query(self, text: str) -> List[float]:
-        hash_obj = hashlib.md5(text.encode("utf-8"))
-        seed = int(hash_obj.hexdigest(), 16) % (2**32)
+        # deterministic vector for same text
+        if np is None:
+            h = hashlib.md5(text.encode("utf-8")).hexdigest()
+            seed = int(h[:8], 16)
+            return [((seed + i) % 1000) / 1000.0 for i in range(self.dimension)]
+
+        h = hashlib.md5(text.encode("utf-8")).hexdigest()
+        seed = int(h[:8], 16)
         rng = np.random.RandomState(seed)
-        v = rng.randn(self._dimension)
-        n = np.linalg.norm(v)
+        v = rng.randn(self.dimension)
+        n = float(np.linalg.norm(v))
         if n > 0:
             v = v / n
-        return v.tolist()
+        return v.astype(float).tolist()
 
-    @property
-    def dimension(self) -> int:
-        return self._dimension
+    def embed_text(self, text: str) -> List[float]:
+        return self.embed_query(text)
+
+    def embed(self, text: str) -> List[float]:
+        return self.embed_query(text)
 
 
-def get_embedding_service(use_mock: bool = False, api_key: str = "") -> EmbeddingService:
-    if use_mock:
-        return MockEmbeddings()
-    return GeminiEmbeddings(api_key)
+def get_embedding_service(
+    use_mock: bool = False,
+    api_key: Optional[str] = None,
+    model: Optional[str] = None,
+    expected_dim: Optional[int] = None,
+):
+    """
+    Signature MUST match retriever.py call:
+      get_embedding_service(use_mock=..., api_key=...)
+    """
+    dim = int(expected_dim or os.getenv("EXPECTED_EMBEDDING_DIM", "3072"))
+
+    # allow forcing mock via env too
+    if use_mock or _env_bool("USE_MOCK_EMBEDDINGS", False):
+        return MockEmbeddingService(dim)
+
+    key = api_key or os.getenv("GEMINI_API_KEY")
+    if not key:
+        raise RuntimeError("GEMINI_API_KEY missing")
+
+    m = _normalize_model(model or os.getenv("GEMINI_EMBEDDING_MODEL", "models/gemini-embedding-001"))
+
+    cfg = EmbeddingConfig(
+        api_key=key,
+        model=m,
+        dimension=dim,
+        timeout_s=int(os.getenv("GEMINI_EMBED_TIMEOUT_S", "30")),
+        max_retries=int(os.getenv("GEMINI_EMBED_MAX_RETRIES", "6")),
+        base_backoff_s=float(os.getenv("GEMINI_EMBED_BASE_BACKOFF_S", "0.8")),
+        max_backoff_s=float(os.getenv("GEMINI_EMBED_MAX_BACKOFF_S", "8.0")),
+    )
+    return GeminiEmbeddingService(cfg)

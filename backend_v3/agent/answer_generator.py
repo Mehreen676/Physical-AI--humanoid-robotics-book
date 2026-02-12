@@ -1,161 +1,184 @@
-"""Answer generation with refusal handling and grounding validation."""
+"""Answer generation with refusal handling and grounding validation.
 
-from typing import Dict, List
+Fix:
+- Sometimes retrieved_chunks elements come as `str` instead of dict.
+  This caused: 'str' object has no attribute 'get'
+- We normalize chunks before using `.get()`, so API never crashes.
+"""
+
+from __future__ import annotations
+
+from typing import Dict, List, Optional, Any
 from backend_v3.agent.gemini_agent import GeminiAgent
-
 
 # Import Citation from backend models (reuse existing schema)
 import sys
 import os
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
-from backend_v3.models import Citation
+from backend_v3.models import Citation  # noqa: E402
 
 
 class AnswerGenerator:
     """Generates grounded answers using Gemini agent."""
 
     def __init__(self, agent: GeminiAgent):
-        """
-        Initialize answer generator.
-
-        Args:
-            agent: Configured Gemini agent
-        """
         self.agent = agent
 
-    def generate_answer(
-        self,
-        question: str,
-        context: str,
-        conversation_history: List[Dict] = None
-    ) -> Dict:
+    # -----------------------------
+    # Helpers
+    # -----------------------------
+    def _normalize_chunks(self, retrieved_chunks: Optional[List[Any]]) -> List[Dict[str, Any]]:
         """
-        Generate grounded answer.
+        Ensure chunks are always dicts with keys: text, metadata, score.
 
-        Args:
-            question: User question
-            context: Formatted context
-            conversation_history: Optional history
-
-        Returns:
-            Dict with answer, grounded flag, refusal info
+        Accepts:
+        - dict chunk: keep as-is
+        - str chunk: convert to {"text": <str>, "metadata": {}, "score": 0.0}
+        - anything else: convert to string safely
         """
-        # Call agent
-        answer = self.agent.create_chat_completion(
-            question=question,
-            context=context,
-            conversation_history=conversation_history
-        )
+        if not retrieved_chunks:
+            return []
 
-        # Detect refusal
-        is_refusal = self._is_refusal(answer)
+        normalized: List[Dict[str, Any]] = []
+        for ch in retrieved_chunks:
+            if isinstance(ch, dict):
+                normalized.append(ch)
+            elif isinstance(ch, str):
+                normalized.append({"text": ch, "metadata": {}, "score": 0.0})
+            else:
+                normalized.append({"text": str(ch), "metadata": {}, "score": 0.0})
+        return normalized
 
-        return {
-            "answer": answer,
-            "grounded": True,  # Assume grounded (agent enforces this)
-            "is_refusal": is_refusal
-        }
+    def _normalize_history(self, conversation_history: Optional[List[Any]]) -> List[Dict[str, Any]]:
+        """
+        Ensure conversation_history always list[dict] so gemini_agent never crashes.
+        """
+        if not conversation_history:
+            return []
+        out: List[Dict[str, Any]] = []
+        for h in conversation_history:
+            if isinstance(h, dict):
+                out.append(h)
+            else:
+                out.append({"question": "", "answer": str(h)})
+        return out
 
     def _is_refusal(self, answer: str) -> bool:
-        """
-        Detect if answer is a refusal.
-
-        Args:
-            answer: Generated answer
-
-        Returns:
-            True if answer is a refusal
-        """
         refusal_phrases = [
+            "i cannot answer this question based on the provided context",
             "cannot answer",
             "not in the context",
             "not found in the book",
             "information is not present",
             "don't have enough information",
-            "not provided in the context"
+            "not provided in the context",
         ]
-
-        answer_lower = answer.lower()
+        answer_lower = (answer or "").lower()
         return any(phrase in answer_lower for phrase in refusal_phrases)
 
-    def extract_citations(
+    # -----------------------------
+    # Main API
+    # -----------------------------
+    def generate_answer(
         self,
-        answer: str,
-        retrieved_chunks: List[Dict]
-    ) -> List[Citation]:
+        question: str,
+        context: str,
+        conversation_history: Optional[List[Dict]] = None,
+    ) -> Dict[str, Any]:
         """
-        Extract citations from answer and chunks.
-
-        Args:
-            answer: Generated answer
-            retrieved_chunks: Retrieved chunks
+        Generate grounded answer.
 
         Returns:
-            List of citations
+            Dict with answer, grounded flag, refusal info
         """
-        citations = []
+        safe_history = self._normalize_history(conversation_history)
 
-        # Extract top 3 chunks as citations
-        for chunk in retrieved_chunks[:3]:
-            metadata = chunk.get("metadata", {})
-            text = chunk.get("text", "")
+        answer = self.agent.create_chat_completion(
+            question=question,
+            context=context,
+            conversation_history=safe_history,
+        )
 
-            citations.append(Citation(
-                chapter=metadata.get("chapter", "Unknown"),
-                section=metadata.get("section", "Unknown"),
-                text_snippet=text[:150] + "..." if len(text) > 150 else text,
-                score=chunk.get("score", 0.0)
-            ))
+        is_refusal = self._is_refusal(answer)
+
+        return {
+            "answer": answer,
+            "grounded": True,  # validation happens separately (route can override)
+            "is_refusal": is_refusal,
+        }
+
+    def extract_citations(self, answer: str, retrieved_chunks: List[Any]) -> List[Citation]:
+        """
+        Extract citations from retrieved chunks.
+        """
+        chunks = self._normalize_chunks(retrieved_chunks)
+        citations: List[Citation] = []
+
+        # If refusal OR no chunks => empty citations
+        if self._is_refusal(answer) or not chunks:
+            return citations
+
+        # Take top 3 chunks as citations
+        for chunk in chunks[:3]:
+            metadata = chunk.get("metadata") or {}
+            text = chunk.get("text") or ""
+
+            citations.append(
+                Citation(
+                    chapter=metadata.get("chapter", "Unknown"),
+                    section=metadata.get("section", "Unknown"),
+                    text_snippet=(text[:150] + "...") if len(text) > 150 else text,
+                    score=float(chunk.get("score", 0.0) or 0.0),
+                )
+            )
 
         return citations
 
-    def validate_grounding(
-        self,
-        answer: str,
-        retrieved_chunks: List[Dict]
-    ) -> bool:
+    def validate_grounding(self, answer: str, retrieved_chunks: List[Any]) -> bool:
         """
         Validate that answer is grounded in chunks.
 
-        Args:
-            answer: Generated answer
-            retrieved_chunks: Retrieved chunks
-
-        Returns:
-            True if answer appears grounded
+        - Refusals are grounded (no claims to verify)
+        - Otherwise, keyword overlap heuristic
         """
-        # Refusals are considered grounded (no claims to verify)
         if self._is_refusal(answer):
             return True
 
-        # Extract keywords from answer (excluding common words)
+        chunks = self._normalize_chunks(retrieved_chunks)
+        if not chunks:
+            return False
+
         stop_words = {
             "the", "a", "an", "and", "or", "but", "in", "on", "at", "to",
             "for", "of", "with", "by", "from", "is", "are", "was", "were",
-            "this", "that", "it", "as", "be", "been", "being"
+            "this", "that", "it", "as", "be", "been", "being",
         }
 
+        # Keywords from answer
         answer_keywords = set(
-            word.lower() for word in answer.split()
-            if len(word) > 3 and word.lower() not in stop_words
+            w.lower().strip(".,:;!?()[]{}\"'")
+            for w in (answer or "").split()
+            if len(w) > 3 and w.lower() not in stop_words
         )
-
-        # Extract keywords from chunks
-        chunk_keywords = set()
-        for chunk in retrieved_chunks:
-            chunk_text = chunk.get("text", "").lower()
-            chunk_keywords.update(
-                word for word in chunk_text.split()
-                if len(word) > 3 and word not in stop_words
-            )
-
-        # Check keyword overlap
         if not answer_keywords:
-            return True  # Empty answer (refusal)
+            return True
+
+        # Keywords from chunks
+        chunk_keywords = set()
+        for chunk in chunks:
+            chunk_text = (chunk.get("text") or "").lower()
+            for w in chunk_text.split():
+                w = w.strip(".,:;!?()[]{}\"'")
+                if len(w) > 3 and w not in stop_words:
+                    chunk_keywords.add(w)
+
+        if not chunk_keywords:
+            return False
 
         overlap = answer_keywords.intersection(chunk_keywords)
-        overlap_ratio = len(overlap) / len(answer_keywords)
+        overlap_ratio = len(overlap) / max(1, len(answer_keywords))
 
-        # Should have at least 60% keyword overlap
+        # 60% overlap threshold
         return overlap_ratio >= 0.6

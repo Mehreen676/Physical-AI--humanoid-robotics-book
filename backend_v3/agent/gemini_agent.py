@@ -9,19 +9,24 @@ IMPORTANT:
 - Strict grounding (book context only).
 - Sanitizes model output to remove "(Relevance: x.xx)" / "(Score: x.xx)".
 - Handles quota/rate-limit gracefully (no noisy prints).
+- Robust conversation_history handling (avoids "'str' object has no attribute 'get'").
 """
 
 from __future__ import annotations
 
 import re
 import time
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Tuple
+
+
+REFUSAL_PHRASE = "I cannot answer this question based on the provided context."
 
 
 class GeminiAgent:
     """Agent using Google Gemini API for grounded chat completion."""
 
     _MODEL_FALLBACKS = [
+        # prefer newer models first (availability depends on your API/quota)
         "gemini-2.0-flash",
         "gemini-2.0-flash-001",
         "gemini-2.0-pro",
@@ -30,7 +35,7 @@ class GeminiAgent:
     ]
 
     def __init__(self, api_key: str, model: str = "gemini-2.0-flash"):
-        self.api_key = api_key
+        self.api_key = (api_key or "").strip()
         self.model_name = model
 
         self.system_instruction = """You are a helpful AI assistant for a Physical AI & Humanoid Robotics textbook.
@@ -49,67 +54,44 @@ Temperature is 0 for deterministic responses.
         self._use_new_sdk = False
         self._client = None
         self._legacy_model = None
+        self._model_candidates: List[str] = [self.model_name] + [
+            m for m in self._MODEL_FALLBACKS if m != self.model_name
+        ]
 
-        try:
-            from google import genai  # type: ignore
-            self._genai = genai
-            self._client = genai.Client(api_key=self.api_key)
-            self._use_new_sdk = True
-        except Exception:
-            import google.generativeai as genai_legacy  # type: ignore
-            self._genai_legacy = genai_legacy
-            genai_legacy.configure(api_key=self.api_key)
-            self._use_new_sdk = False
-
-        self._select_working_model()
-
+        # output sanitizer
         self._strip_metrics_pat = re.compile(
             r"\s*\((?:relevance|score)\s*:\s*[-+]?\d*\.?\d+\)\s*",
             re.IGNORECASE,
         )
 
-    def _select_working_model(self) -> None:
-        candidates = [self.model_name] + [m for m in self._MODEL_FALLBACKS if m != self.model_name]
+        # Try new SDK first (google-genai)
+        try:
+            from google import genai  # type: ignore
 
-        if self._use_new_sdk:
-            self._model_candidates = candidates
-            return
+            if self.api_key:
+                self._client = genai.Client(api_key=self.api_key)
+                self._use_new_sdk = True
+            else:
+                self._use_new_sdk = False
+        except Exception:
+            self._use_new_sdk = False
 
-        last_err: Optional[Exception] = None
-        for m in candidates:
+        # Legacy fallback (google-generativeai)
+        if not self._use_new_sdk:
             try:
-                self._legacy_model = self._genai_legacy.GenerativeModel(m)
-                self.model_name = m
-                self._model_candidates = candidates
-                return
-            except Exception as e:
-                last_err = e
+                import google.generativeai as genai_legacy  # type: ignore
 
-        self._legacy_model = None
-        self._model_candidates = candidates
-        self._last_model_error = last_err
+                self._genai_legacy = genai_legacy
+                if self.api_key:
+                    genai_legacy.configure(api_key=self.api_key)
+                self._select_working_model_legacy()
+            except Exception:
+                # If nothing works, we still keep agent alive (it will refuse)
+                self._legacy_model = None
 
-    def _build_prompt(
-        self,
-        question: str,
-        context: str,
-        conversation_history: Optional[List[Dict[str, Any]]] = None,
-    ) -> str:
-        prompt_parts = [self.system_instruction, "\n\n"]
-
-        if conversation_history:
-            prompt_parts.append("Previous conversation:\n")
-            for turn in conversation_history[-3:]:
-                prompt_parts.append(f"User: {turn.get('question', '')}\n")
-                prompt_parts.append(f"Assistant: {turn.get('answer', '')}\n")
-            prompt_parts.append("\n")
-
-        prompt_parts.append(f"Context from book:\n{context}\n\n")
-        prompt_parts.append(f"User question: {question}\n\n")
-        prompt_parts.append("Answer (cite sources using ONLY [Chapter: ..., Section: ...]):")
-
-        return "".join(prompt_parts)
-
+    # -------------------------
+    # Helpers
+    # -------------------------
     def _sanitize_output(self, text: str) -> str:
         if not text:
             return text
@@ -121,25 +103,98 @@ Temperature is 0 for deterministic responses.
         msg = str(err).lower()
         return ("429" in msg) or ("quota" in msg) or ("rate limit" in msg) or ("exceeded" in msg)
 
+    def _is_model_missing(self, err: Exception) -> bool:
+        msg = str(err).lower()
+        return ("not found" in msg) or ("is not supported" in msg) or ("404" in msg)
+
+    def _safe_turn_to_qa(self, turn: Any) -> Tuple[str, str]:
+        """
+        DB history sometimes returns dicts, sometimes strings, sometimes tuples.
+        This prevents: "'str' object has no attribute 'get'".
+        """
+        # dict-like
+        if isinstance(turn, dict):
+            q = str(turn.get("question", "") or "")
+            a = str(turn.get("answer", "") or "")
+            return q, a
+
+        # tuple/list like: (question, answer, ...)
+        if isinstance(turn, (list, tuple)) and len(turn) >= 2:
+            return str(turn[0] or ""), str(turn[1] or "")
+
+        # string fallback
+        if isinstance(turn, str):
+            # treat as raw transcript
+            return "", turn
+
+        return "", ""
+
+    def _build_prompt(
+        self,
+        question: str,
+        context: str,
+        conversation_history: Optional[List[Any]] = None,
+    ) -> str:
+        prompt_parts = [self.system_instruction, "\n\n"]
+
+        if conversation_history:
+            prompt_parts.append("Previous conversation:\n")
+            for turn in conversation_history[-3:]:
+                q, a = self._safe_turn_to_qa(turn)
+                if q:
+                    prompt_parts.append(f"User: {q}\n")
+                if a:
+                    prompt_parts.append(f"Assistant: {a}\n")
+            prompt_parts.append("\n")
+
+        prompt_parts.append(f"Context from book:\n{context}\n\n")
+        prompt_parts.append(f"User question: {question}\n\n")
+        prompt_parts.append("Answer (cite sources using ONLY [Chapter: ..., Section: ...]):")
+
+        return "".join(prompt_parts)
+
+    # -------------------------
+    # Legacy model selection
+    # -------------------------
+    def _select_working_model_legacy(self) -> None:
+        last_err: Optional[Exception] = None
+        for m in self._model_candidates:
+            try:
+                self._legacy_model = self._genai_legacy.GenerativeModel(m)
+                self.model_name = m
+                return
+            except Exception as e:
+                last_err = e
+
+        self._legacy_model = None
+        self._last_model_error = last_err
+
+    # -------------------------
+    # Main call
+    # -------------------------
     def create_chat_completion(
         self,
         question: str,
         context: str,
-        conversation_history: Optional[List[Dict[str, Any]]] = None,
+        conversation_history: Optional[List[Any]] = None,
     ) -> str:
-        if not context or not context.strip():
-            return "I cannot answer this question based on the provided context."
+        # hard refusal if no context
+        if not context or not str(context).strip():
+            return REFUSAL_PHRASE
+
+        # if API key missing, never call external
+        if not self.api_key:
+            return REFUSAL_PHRASE
 
         prompt = self._build_prompt(question, context, conversation_history)
 
-        # New SDK
-        if self._use_new_sdk:
+        # New SDK path
+        if self._use_new_sdk and self._client is not None:
             try:
                 from google.genai import types  # type: ignore
 
-                # small backoff loop only for 429
-                for m in getattr(self, "_model_candidates", [self.model_name]):
-                    for attempt in range(2):  # 2 tries per model
+                for m in self._model_candidates:
+                    for attempt in range(2):
                         try:
                             resp = self._client.models.generate_content(
                                 model=m,
@@ -157,35 +212,28 @@ Temperature is 0 for deterministic responses.
                                 return self._sanitize_output(str(text).strip())
                             break
                         except Exception as inner:
-                            msg = str(inner).lower()
-
-                            # model not found → try next
-                            if ("not found" in msg) or ("is not supported" in msg) or ("404" in msg):
+                            if self._is_model_missing(inner):
                                 break
-
-                            # 429/quota → brief backoff then continue attempt
                             if self._is_rate_limit(inner) and attempt == 0:
                                 time.sleep(1.2)
                                 continue
+                            return REFUSAL_PHRASE
 
-                            # other errors
-                            return "I cannot answer this question based on the provided context."
-
-                return "I cannot answer this question based on the provided context."
-
+                return REFUSAL_PHRASE
             except Exception:
-                return "I cannot answer this question based on the provided context."
+                return REFUSAL_PHRASE
 
-        # Legacy SDK
+        # Legacy SDK path
         try:
             if self._legacy_model is None:
-                self._select_working_model()
+                self._select_working_model_legacy()
 
-            for m in getattr(self, "_model_candidates", [self.model_name]):
+            for m in self._model_candidates:
                 for attempt in range(2):
                     try:
                         if self._legacy_model is None or self.model_name != m:
                             self._legacy_model = self._genai_legacy.GenerativeModel(m)
+                            self.model_name = m
 
                         response = self._legacy_model.generate_content(
                             prompt,
@@ -198,25 +246,19 @@ Temperature is 0 for deterministic responses.
                         )
                         text = getattr(response, "text", None)
                         if text and str(text).strip():
-                            self.model_name = m
                             return self._sanitize_output(str(text).strip())
                         break
-
                     except Exception as inner:
-                        msg = str(inner).lower()
-                        if ("not found" in msg) or ("is not supported" in msg) or ("404" in msg):
+                        if self._is_model_missing(inner):
                             break
-
                         if self._is_rate_limit(inner) and attempt == 0:
                             time.sleep(1.2)
                             continue
+                        return REFUSAL_PHRASE
 
-                        return "I cannot answer this question based on the provided context."
-
-            return "I cannot answer this question based on the provided context."
-
+            return REFUSAL_PHRASE
         except Exception:
-            return "I cannot answer this question based on the provided context."
+            return REFUSAL_PHRASE
 
     def __repr__(self) -> str:
         return f"GeminiAgent(model={self.model_name}, sdk={'new' if self._use_new_sdk else 'legacy'})"

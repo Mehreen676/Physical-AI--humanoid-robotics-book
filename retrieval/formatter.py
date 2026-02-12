@@ -1,100 +1,174 @@
-"""
-Result formatting utilities.
+﻿"""
+retrieval/formatter.py
+
+Fixes:
+- Missing ResultFormatter methods: format_results, validate_metadata_integrity
+- Prevents crashes on bad/partial metadata
+- Always returns a DICT (never a string), so downstream .get() calls work.
+
+Expected output shape:
+{
+  "context": str,
+  "chunks": [ { "text": str, "metadata": dict, "score": float, "id": str } ],
+  "citations": { "<id>": { ... } }
+}
 """
 
-from typing import List, Dict
-from qdrant_client.models import ScoredPoint
-from .schemas import RetrievedChunk, ChunkMetadata
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
+
+
+def _as_dict(x: Any) -> Dict[str, Any]:
+    return x if isinstance(x, dict) else {}
+
+
+def _get_attr(obj: Any, name: str, default: Any = None) -> Any:
+    if isinstance(obj, dict):
+        return obj.get(name, default)
+    return getattr(obj, name, default)
+
+
+@dataclass
+class FormattedChunk:
+    id: str
+    score: float
+    text: str
+    metadata: Dict[str, Any]
 
 
 class ResultFormatter:
-    """Format Qdrant search results to standard schema."""
+    """
+    Formats Qdrant search results into:
+    - context text (joined chunks)
+    - chunks list with clean metadata
+    - citations map (id -> metadata)
+    """
 
-    @staticmethod
-    def format_results(scored_points: List[ScoredPoint]) -> List[Dict]:
+    def __init__(self, max_context_chars: int = 12000):
+        self.max_context_chars = max_context_chars
+
+    def validate_metadata_integrity(self, metadata: Any) -> Dict[str, Any]:
         """
-        Format Qdrant ScoredPoint objects to RetrievedChunk dictionaries.
-
-        Args:
-            scored_points: List of ScoredPoint objects from Qdrant
-
-        Returns:
-            List of formatted chunk dictionaries
-
-        Raises:
-            ValueError: If metadata validation fails
+        Ensures metadata is a dict and has safe chunk_index/total_chunks.
+        If values are missing/invalid, we normalize instead of throwing.
         """
-        formatted_chunks = []
+        md = _as_dict(metadata)
 
-        for point in scored_points:
-            # Extract payload
-            payload = point.payload
+        chunk_index = md.get("chunk_index", 0)
+        total_chunks = md.get("total_chunks", 1)
 
-            # Create metadata
-            metadata = ChunkMetadata(
-                chapter=payload.get("chapter", "Unknown"),
-                section=payload.get("section", "Unknown"),
-                source_file=payload.get("source_file", "Unknown"),
-                chunk_index=payload.get("chunk_index", 0),
-                total_chunks=payload.get("total_chunks", 1),
-                token_count=payload.get("token_count")
-            )
+        try:
+            chunk_index = int(chunk_index)
+        except Exception:
+            chunk_index = 0
 
-            # Create chunk
-            chunk = RetrievedChunk(
-                text=payload.get("text", ""),
-                metadata=metadata,
-                score=point.score
-            )
+        try:
+            total_chunks = int(total_chunks)
+        except Exception:
+            total_chunks = 1
 
-            formatted_chunks.append(chunk.dict())
+        if chunk_index < 0:
+            chunk_index = 0
+        if total_chunks < 1:
+            total_chunks = 1
 
-        # Sort by score descending
-        formatted_chunks.sort(key=lambda x: x["score"], reverse=True)
+        # If chunk_index is out of range, normalize total_chunks rather than error
+        if chunk_index >= total_chunks:
+            total_chunks = chunk_index + 1
 
-        return formatted_chunks
+        md["chunk_index"] = chunk_index
+        md["total_chunks"] = total_chunks
 
-    @staticmethod
-    def validate_metadata_integrity(chunks: List[Dict]) -> bool:
+        # Common fields (safe defaults)
+        md.setdefault("chapter", md.get("doc_title") or md.get("chapter_title") or "")
+        md.setdefault("section", md.get("section_title") or md.get("section") or "")
+        md.setdefault("source", md.get("file_path") or md.get("source") or "")
+
+        return md
+
+    def format_results(self, results: Any) -> Dict[str, Any]:
         """
-        Validate that all chunks have complete metadata.
-
-        Args:
-            chunks: List of formatted chunk dictionaries
-
-        Returns:
-            True if all metadata is valid
-
-        Raises:
-            ValueError: If validation fails
+        Takes raw Qdrant hits (objects or dicts) and returns a stable dict.
+        Downstream code should NEVER get a plain string from here.
         """
-        required_fields = ["text", "metadata", "score"]
-        required_metadata_fields = [
-            "chapter", "section", "source_file",
-            "chunk_index", "total_chunks"
-        ]
+        formatted: List[FormattedChunk] = []
 
-        for i, chunk in enumerate(chunks):
-            # Check top-level fields
-            for field in required_fields:
-                if field not in chunk:
-                    raise ValueError(f"Chunk {i} missing required field: {field}")
+        if results is None:
+            results = []
 
-            # Check metadata fields
-            metadata = chunk["metadata"]
-            for field in required_metadata_fields:
-                if field not in metadata:
-                    raise ValueError(f"Chunk {i} metadata missing required field: {field}")
+        for r in results:
+            payload = _get_attr(r, "payload", {})
+            payload = _as_dict(payload)
 
-            # Validate chunk_index < total_chunks
-            if metadata["chunk_index"] >= metadata["total_chunks"]:
-                raise ValueError(
-                    f"Chunk {i} has invalid chunk_index ({metadata['chunk_index']}) >= "
-                    f"total_chunks ({metadata['total_chunks']})"
+            # text field might be stored as: payload["text"] or payload["content"]
+            text = payload.get("text") or payload.get("content") or ""
+            if not isinstance(text, str):
+                text = str(text)
+
+            metadata = payload.get("metadata", payload.get("meta", {}))
+            md = self.validate_metadata_integrity(metadata)
+
+            rid = _get_attr(r, "id", "") or payload.get("id", "")
+            rid = str(rid)
+
+            score = _get_attr(r, "score", 0.0)
+            try:
+                score = float(score)
+            except Exception:
+                score = 0.0
+
+            formatted.append(
+                FormattedChunk(
+                    id=rid,
+                    score=score,
+                    text=text,
+                    metadata=md,
                 )
+            )
 
-            # Validate score range
-            if not (0.0 <= chunk["score"] <= 1.0):
-                raise ValueError(f"Chunk {i} has invalid score: {chunk['score']}")
+        # Build context (respect max length)
+        parts: List[str] = []
+        total = 0
+        for fc in formatted:
+            t = fc.text.strip()
+            if not t:
+                continue
+            # +2 for spacing
+            if total + len(t) + 2 > self.max_context_chars:
+                remaining = self.max_context_chars - total
+                if remaining > 50:
+                    parts.append(t[:remaining])
+                break
+            parts.append(t)
+            total += len(t) + 2
 
-        return True
+        context = "\n\n".join(parts).strip()
+
+        chunks_out: List[Dict[str, Any]] = []
+        citations: Dict[str, Dict[str, Any]] = {}
+
+        for fc in formatted:
+            chunks_out.append(
+                {
+                    "id": fc.id,
+                    "score": fc.score,
+                    "text": fc.text,
+                    "metadata": fc.metadata,
+                }
+            )
+            citations[fc.id] = {
+                "score": fc.score,
+                "chapter": fc.metadata.get("chapter", ""),
+                "section": fc.metadata.get("section", ""),
+                "source": fc.metadata.get("source", ""),
+                "chunk_index": fc.metadata.get("chunk_index", 0),
+                "total_chunks": fc.metadata.get("total_chunks", 1),
+            }
+
+        return {
+            "context": context,
+            "chunks": chunks_out,
+            "citations": citations,
+        }

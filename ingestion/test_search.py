@@ -1,196 +1,146 @@
-#!/usr/bin/env python3
 """
-Test script for similarity search in Qdrant.
+Small test script to validate Qdrant search.
 
-Validates that embeddings were stored correctly and can be retrieved via
-semantic search.
+Run:
+  py -m ingestion.test_search
 """
 
-import logging
+from __future__ import annotations
+
 import os
-import sys
+import logging
 from pathlib import Path
+from typing import Any, List
+
 from dotenv import load_dotenv
 
-from embeddings import GeminiEmbeddings
-from mock_embeddings import MockEmbeddings  # TODO: Remove after Gemini quota reset
-from vector_store import QdrantVectorStore
+# -------------------------------------------------------------------
+# Force-load .env from PROJECT ROOT (parent of /ingestion folder)
+# -------------------------------------------------------------------
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DOTENV_PATH = PROJECT_ROOT / ".env"
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler(sys.stdout)]
-)
+# override=True so latest .env values always win
+load_dotenv(dotenv_path=DOTENV_PATH, override=True)
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
-def load_config() -> dict:
-    """Load configuration from environment variables."""
-    env_path = Path(__file__).parent.parent / '.env'
-    if env_path.exists():
-        load_dotenv(env_path)
-
-    config = {
-        'qdrant_api_key': os.getenv('QDRANT_API_KEY'),
-        'qdrant_url': os.getenv('QDRANT_URL'),
-        'collection_name': os.getenv('COLLECTION_NAME'),
-        'gemini_api_key': os.getenv('GEMINI_API_KEY')
-    }
-
-    return config
+# Import AFTER loading env
+from ingestion.embeddings import get_embedder
+from ingestion.vector_store import QdrantVectorStore
 
 
-def test_search(query: str, top_k: int = 5):
-    """
-    Test similarity search with a query.
-
-    Args:
-        query: Search query
-        top_k: Number of results to return
-    """
-    logger.info("=" * 60)
-    logger.info("Testing Similarity Search")
-    logger.info("=" * 60)
-
+def _get_expected_dim_from_env() -> int | None:
+    v = os.environ.get("EXPECTED_EMBEDDING_DIM")
+    if not v:
+        return None
     try:
-        # Load config
-        config = load_config()
-
-        # Initialize embeddings service
-        logger.info("\nInitializing mock embeddings...")
-        # TODO: Replace MockEmbeddings with GeminiEmbeddings after quota reset
-        # embedder = GeminiEmbeddings(api_key=config['gemini_api_key'])
-        embedder = MockEmbeddings()
-
-        # Initialize vector store
-        logger.info("Connecting to Qdrant...")
-        vector_store = QdrantVectorStore(
-            url=config['qdrant_url'],
-            api_key=config['qdrant_api_key'],
-            collection_name=config['collection_name'],
-            embedding_dim=embedder.get_embedding_dimension()
-        )
-
-        # Get collection info
-        # Skipping get_collection_info() due to Qdrant client/server version mismatch
-        logger.info(f"\nCollection: {config['collection_name']}")
-        # collection_info = vector_store.get_collection_info()
-        # logger.info(f"Total points: {collection_info.get('points_count', 0)}")
-        # logger.info(f"Status: {collection_info.get('status', 'unknown')}")
-
-        # Generate query embedding
-        logger.info(f"\nQuery: {query}")
-        logger.info("Generating query embedding...")
-        query_embedding = embedder.embed_text(query)
-
-        # Search
-        logger.info(f"Searching for top {top_k} results...")
-        results = vector_store.search(
-            query_vector=query_embedding,
-            limit=top_k,
-            score_threshold=0.3  # Minimum cosine similarity
-        )
-
-        # Display results
-        logger.info("\n" + "=" * 60)
-        logger.info(f"Search Results ({len(results)} found)")
-        logger.info("=" * 60)
-
-        for i, result in enumerate(results, 1):
-            logger.info(f"\n--- Result {i} ---")
-            logger.info(f"Score: {result['score']:.4f}")
-            logger.info(f"Chapter: {result['metadata'].get('chapter', 'N/A')}")
-            logger.info(f"Section: {result['metadata'].get('section', 'N/A')}")
-            logger.info(f"Source: {result['metadata'].get('source_file', 'N/A')}")
-            logger.info(f"Chunk: {result['metadata'].get('chunk_index', 0) + 1}/{result['metadata'].get('total_chunks', 0)}")
-
-            # Display text snippet
-            text = result['text']
-            snippet = text[:200] + "..." if len(text) > 200 else text
-            logger.info(f"\nText snippet:\n{snippet}\n")
-
-        logger.info("=" * 60)
-
-        return results
-
-    except Exception as e:
-        logger.error(f"Search test failed: {e}", exc_info=True)
-        raise
+        return int(v.strip())
+    except ValueError:
+        return None
 
 
-def main():
-    """Main test function with sample queries."""
-    logger.info("\n" + "=" * 60)
-    logger.info("Qdrant Similarity Search Test")
-    logger.info("=" * 60)
+def _embed_text(embedder: Any, text: str) -> List[float]:
+    """
+    Handles different embedder method names across versions.
+    """
+    candidates = ["embed_text", "embed", "embed_query", "get_embedding", "encode"]
+    for name in candidates:
+        fn = getattr(embedder, name, None)
+        if callable(fn):
+            try:
+                out = fn(text)
+                if isinstance(out, dict):
+                    for k in ("embedding", "vector", "values"):
+                        if k in out and isinstance(out[k], list):
+                            return out[k]
+                if isinstance(out, list):
+                    return out
+            except TypeError:
+                continue
 
-    # Test queries
-    test_queries = [
+    raise AttributeError(
+        "Embedder method not found. Tried: embed_text/embed/embed_query/get_embedding/encode"
+    )
+
+
+def detect_dim() -> int:
+    expected = _get_expected_dim_from_env()
+    if expected:
+        logger.info("Using EXPECTED_EMBEDDING_DIM = %s", expected)
+        return expected
+
+    embedder = get_embedder()
+    v = _embed_text(embedder, "dim probe")
+    dim = len(v)
+    logger.info("Detected embedding dim = %s", dim)
+    return dim
+
+
+def main() -> None:
+    # Helpful debug
+    logger.info("CWD = %s", Path.cwd())
+    logger.info("PROJECT_ROOT = %s", PROJECT_ROOT)
+    logger.info(".env path = %s (exists=%s)", DOTENV_PATH, DOTENV_PATH.exists())
+
+    if not DOTENV_PATH.exists():
+        raise RuntimeError(f".env not found at: {DOTENV_PATH}")
+
+    qdrant_url = os.environ.get("QDRANT_URL")
+    qdrant_api_key = os.environ.get("QDRANT_API_KEY")
+    collection = os.environ.get("COLLECTION_NAME", "data_collection_3072_v2")
+
+    if not qdrant_url:
+        raise RuntimeError("QDRANT_URL missing (check .env content + path)")
+    if not qdrant_api_key:
+        raise RuntimeError("QDRANT_API_KEY missing (check .env content + path)")
+
+    dim = detect_dim()
+
+    store = QdrantVectorStore(
+        qdrant_url=qdrant_url,
+        api_key=qdrant_api_key,
+        collection_name=collection,
+        vector_dim=dim,
+        timeout=60,
+    )
+
+    queries = [
         "What is ROS 2?",
-        "How do humanoid robots work?",
-        "Explain vision-language-action systems",
         "What is Gazebo simulation?",
-        "How to control robotic hardware?"
+        "Explain vision-language-action systems",
+        "How do humanoid robots work?",
+        "How to control robotic hardware?",
     ]
 
-    logger.info("\nRunning sample queries...")
+    for q in queries:
+        logger.info("\nQuery: %s", q)
+        results = store.search(q, top_k=3)
 
-    for i, query in enumerate(test_queries, 1):
-        logger.info(f"\n\n{'=' * 60}")
-        logger.info(f"Query {i}/{len(test_queries)}")
-        logger.info(f"{'=' * 60}")
+        for i, r in enumerate(results, start=1):
+            payload = r.get("payload") or {}
+            meta = payload.get("metadata", {}) if isinstance(payload, dict) else {}
 
-        try:
-            test_search(query, top_k=3)
-        except Exception as e:
-            logger.error(f"Query failed: {e}")
-            continue
+            chapter = meta.get("chapter")
+            section = meta.get("section")
+            source = meta.get("source_file") or meta.get("source") or meta.get("path")
 
-        # Add separator
-        if i < len(test_queries):
-            logger.info("\n" + "-" * 60 + "\n")
+            text = payload.get("text") if isinstance(payload, dict) else None
+            preview = (text or "").replace("\n", " ")[:180]
 
-    logger.info("\n" + "=" * 60)
-    logger.info("Test Complete!")
-    logger.info("=" * 60)
+            logger.info(
+                "[%s] score=%.4f | chapter=%s | section=%s | source=%s",
+                i,
+                float(r.get("score", 0)),
+                chapter,
+                section,
+                source,
+            )
+            logger.info("     %s", preview)
+
+    logger.info("Done.")
 
 
 if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description="Test similarity search in Qdrant"
-    )
-    parser.add_argument(
-        '--query',
-        type=str,
-        help='Custom search query'
-    )
-    parser.add_argument(
-        '--top-k',
-        type=int,
-        default=5,
-        help='Number of results to return (default: 5)'
-    )
-    parser.add_argument(
-        '--run-samples',
-        action='store_true',
-        help='Run sample queries instead of custom query'
-    )
-
-    args = parser.parse_args()
-
-    try:
-        if args.run_samples:
-            main()
-        elif args.query:
-            test_search(args.query, args.top_k)
-        else:
-            # Default: run samples
-            main()
-
-    except Exception as e:
-        logger.error(f"Test failed: {e}")
-        sys.exit(1)
+    main()

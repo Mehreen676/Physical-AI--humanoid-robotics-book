@@ -1,162 +1,131 @@
-"""
-Google Gemini embedding service for generating text embeddings.
+﻿"""
+Ingestion embeddings provider (Gemini) — REST based (stable)
+Fixes: AttributeError: 'GeminiEmbedder' has no attribute 'embed_query'
 
-Uses Gemini's free embedding model (embedding-001) to generate 768-dimensional
-embeddings for text chunks.
+Env:
+- GEMINI_API_KEY (required)
+- GEMINI_EMBEDDING_MODEL (default: models/gemini-embedding-001)
+- EXPECTED_EMBEDDING_DIM (default: 3072)
+- USE_MOCK_EMBEDDINGS (default: false)
 """
 
-import logging
-import time
-from typing import List, Optional
 import os
+import time
+import hashlib
+from typing import List
+import requests
 
-import google.generativeai as genai
-from google.api_core import retry
+try:
+    import numpy as np
+except Exception:
+    np = None
 
-logger = logging.getLogger(__name__)
+
+def _normalize_model(name: str) -> str:
+    n = (name or "").strip()
+    if not n:
+        n = "models/gemini-embedding-001"
+    if not (n.startswith("models/") or n.startswith("tunedModels/")):
+        n = "models/" + n
+    return n
 
 
-class GeminiEmbeddings:
-    """Generates embeddings using Google Gemini API."""
+class GeminiEmbedder:
+    def __init__(self):
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise RuntimeError("GEMINI_API_KEY missing")
 
-    def __init__(
-        self,
-        api_key: Optional[str] = None,
-        model_name: str = "models/embedding-001",
-        rate_limit_delay: float = 0.1
-    ):
-        """
-        Initialize Gemini embeddings service.
+        self.api_key = api_key
+        self.model = _normalize_model(os.getenv("GEMINI_EMBEDDING_MODEL", "models/gemini-embedding-001"))
 
-        Args:
-            api_key: Gemini API key (if None, reads from GEMINI_API_KEY env var)
-            model_name: Gemini embedding model name
-            rate_limit_delay: Delay between API calls to avoid rate limits (seconds)
-        """
-        self.api_key = api_key or os.getenv("GEMINI_API_KEY")
+        # must match Qdrant collection vector size
+        self._dimension = int(os.getenv("EXPECTED_EMBEDDING_DIM", "3072"))
 
-        if not self.api_key:
-            raise ValueError(
-                "Gemini API key required. Set GEMINI_API_KEY environment variable "
-                "or pass api_key parameter"
-            )
+        self._min_request_interval = float(os.getenv("GEMINI_RATE_LIMIT_SECONDS", "0.0"))
+        self._last_request_time = 0.0
 
-        # Configure Gemini
-        genai.configure(api_key=self.api_key)
+        model_id = self.model.split("/", 1)[1]
+        self._url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:embedContent"
 
-        self.model_name = model_name
-        self.rate_limit_delay = rate_limit_delay
+    @property
+    def dimension(self) -> int:
+        return self._dimension
 
-        # Test connection
-        try:
-            test_result = genai.embed_content(
-                model=self.model_name,
-                content="test",
-                task_type="retrieval_document"
-            )
-            self.embedding_dim = len(test_result['embedding'])
-            logger.info(
-                f"Initialized GeminiEmbeddings: model={model_name}, "
-                f"dim={self.embedding_dim}"
-            )
-        except Exception as e:
-            logger.error(f"Failed to initialize Gemini: {e}")
-            raise
+    def _enforce_rate_limit(self):
+        if self._min_request_interval <= 0:
+            return
+        elapsed = time.time() - self._last_request_time
+        if elapsed < self._min_request_interval:
+            time.sleep(self._min_request_interval - elapsed)
+        self._last_request_time = time.time()
 
     def embed_text(self, text: str) -> List[float]:
-        """
-        Generate embedding for a single text.
+        self._enforce_rate_limit()
 
-        Args:
-            text: Input text
+        headers = {"Content-Type": "application/json", "x-goog-api-key": self.api_key}
+        payload = {
+            "model": self.model,
+            "content": {"parts": [{"text": text}]},
+            "output_dimensionality": self._dimension,
+        }
 
-        Returns:
-            Embedding vector as list of floats
+        r = requests.post(self._url, headers=headers, json=payload, timeout=30)
+        if r.status_code >= 400:
+            raise RuntimeError(f"embedContent failed ({r.status_code}): {r.text}")
 
-        Raises:
-            Exception: If embedding generation fails
-        """
-        if not text or not text.strip():
-            raise ValueError("Cannot embed empty text")
+        data = r.json()
+        values = None
+        if isinstance(data, dict):
+            emb = data.get("embedding")
+            if isinstance(emb, dict):
+                values = emb.get("values")
 
-        try:
-            result = genai.embed_content(
-                model=self.model_name,
-                content=text,
-                task_type="retrieval_document"
-            )
+        if not values:
+            raise RuntimeError(f"Unexpected embedding response: {data}")
 
-            embedding = result['embedding']
+        return values
 
-            logger.debug(f"Generated embedding for text (length={len(text)})")
+    # ✅ ingestion expects this
+    def embed_query(self, text: str) -> List[float]:
+        return self.embed_text(text)
 
-            return embedding
+    def embed(self, text: str) -> List[float]:
+        return self.embed_text(text)
 
-        except Exception as e:
-            logger.error(f"Failed to generate embedding: {e}")
-            raise
 
-    def embed_batch(
-        self,
-        texts: List[str],
-        batch_size: int = 100
-    ) -> List[List[float]]:
-        """
-        Generate embeddings for multiple texts with batching and rate limiting.
+class MockEmbedder:
+    def __init__(self, dimension: int = 3072):
+        self._dimension = dimension
 
-        Args:
-            texts: List of input texts
-            batch_size: Number of texts to embed in one API call
+    @property
+    def dimension(self) -> int:
+        return self._dimension
 
-        Returns:
-            List of embedding vectors
+    def embed_text(self, text: str) -> List[float]:
+        if np is None:
+            h = hashlib.md5(text.encode("utf-8")).hexdigest()
+            seed = int(h[:8], 16)
+            return [((seed + i) % 1000) / 1000.0 for i in range(self._dimension)]
 
-        Raises:
-            Exception: If embedding generation fails
-        """
-        if not texts:
-            return []
+        h = hashlib.md5(text.encode("utf-8")).hexdigest()
+        seed = int(h[:8], 16)
+        rng = np.random.RandomState(seed)
+        v = rng.randn(self._dimension)
+        n = float(np.linalg.norm(v))
+        if n > 0:
+            v = v / n
+        return v.tolist()
 
-        embeddings = []
-        total_texts = len(texts)
+    def embed_query(self, text: str) -> List[float]:
+        return self.embed_text(text)
 
-        logger.info(f"Embedding {total_texts} texts in batches of {batch_size}")
+    def embed(self, text: str) -> List[float]:
+        return self.embed_text(text)
 
-        for i in range(0, total_texts, batch_size):
-            batch = texts[i:i + batch_size]
-            batch_num = (i // batch_size) + 1
-            total_batches = (total_texts + batch_size - 1) // batch_size
 
-            logger.info(f"Processing batch {batch_num}/{total_batches}")
-
-            try:
-                # Gemini API supports batch embedding
-                for text in batch:
-                    if not text or not text.strip():
-                        logger.warning(f"Skipping empty text at index {i + batch.index(text)}")
-                        embeddings.append([0.0] * self.embedding_dim)
-                        continue
-
-                    embedding = self.embed_text(text)
-                    embeddings.append(embedding)
-
-                    # Rate limiting
-                    if self.rate_limit_delay > 0:
-                        time.sleep(self.rate_limit_delay)
-
-            except Exception as e:
-                logger.error(f"Failed to process batch {batch_num}: {e}")
-                raise
-
-        logger.info(f"Successfully embedded {len(embeddings)} texts")
-
-        return embeddings
-
-    def get_embedding_dimension(self) -> int:
-        """
-        Get the dimension of embeddings produced by this model.
-
-        Returns:
-            Embedding dimension
-        """
-        return self.embedding_dim
+def get_embedder():
+    use_mock = os.getenv("USE_MOCK_EMBEDDINGS", "false").lower() == "true"
+    if use_mock:
+        return MockEmbedder(int(os.getenv("EXPECTED_EMBEDDING_DIM", "3072")))
+    return GeminiEmbedder()

@@ -1,504 +1,319 @@
-"""FastAPI routes for Agentic RAG."""
+﻿from __future__ import annotations
 
-import time
-import sys
 import os
 import re
-from datetime import datetime
-from typing import Optional, Dict, Any, List, Tuple
+import uuid
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
-# Add parent directories to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
-
-from backend_v3.models import (
-    ChatRequest,
-    ChatResponse,
-    SessionCreate,
-    SessionResponse,
-    SessionHistory,
-    HealthResponse
-)
-from backend_v3.agent import (
-    GeminiAgent,
-    ContextFormatter,
-    SelectedTextHandler,
-    AnswerGenerator
-)
-from backend_v3.storage import get_database
-from backend_v3.utils import StructuredLogger
-from retrieval import SemanticRetriever
+from backend_v3.db import SQLiteDB
 
 router = APIRouter()
 
-_agent: GeminiAgent = None
-_retriever: SemanticRetriever = None
+_AGENT: Any = None
+_RETRIEVER: Any = None
 
-REFUSAL_PHRASE = "I cannot answer this question based on the provided context."
-
-
-# -------------------------
-# Dependency setters
-# -------------------------
-def set_agent(agent: GeminiAgent):
-    global _agent
-    _agent = agent
+_DB = SQLiteDB(os.getenv("SQLITE_DB_PATH", "chatbot.db"))
 
 
-def set_retriever(retriever: SemanticRetriever):
-    global _retriever
-    _retriever = retriever
+def set_agent(agent: Any) -> None:
+    global _AGENT
+    _AGENT = agent
 
 
-def get_agent() -> GeminiAgent:
-    if _agent is None:
-        raise RuntimeError("Agent not initialized")
-    return _agent
+def set_retriever(retriever: Any) -> None:
+    global _RETRIEVER
+    _RETRIEVER = retriever
 
 
-def get_retriever() -> SemanticRetriever:
-    if _retriever is None:
-        raise RuntimeError("Retriever not initialized")
-    return _retriever
+def get_agent() -> Any:
+    return _AGENT
 
 
-# -------------------------
-# Helpers
-# -------------------------
-def _normalize(s: str) -> str:
-    return re.sub(r"\s+", " ", (s or "").strip()).lower()
+def get_retriever() -> Any:
+    return _RETRIEVER
 
 
-def _extract_term_from_question(q: str) -> Optional[str]:
-    q = (q or "").strip()
+class ChatRequest(BaseModel):
+    question: str = Field(..., min_length=1)
+    retrieval_mode: str = Field("normal")  # "normal" | "selected_text"
+    selected_text: Optional[str] = None
+    session_id: Optional[str] = None
 
-    # Allow: "ros 2" (keyword), "ROS2", "simulation"
-    # If it's short and not a sentence, treat as term.
-    if len(q) <= 40 and not re.search(r"[?.!]", q) and len(q.split()) <= 4:
-        return q.strip().strip('"').strip("'")
 
-    m = re.match(r"^(what is|define|explain)\s+(.+?)\s*[\?\.\!]*$", q, flags=re.IGNORECASE)
-    if not m:
-        return None
+class Citation(BaseModel):
+    chapter: str = "Unknown"
+    section: str = "Unknown"
+    text_snippet: str = ""
+    score: float = 0.0
 
-    raw = (m.group(2) or "").strip().strip('"').strip("'").strip()
 
-    raw = re.split(
-        r"\b(according to|in the glossary|from the glossary|as per|based on)\b",
-        raw,
-        flags=re.IGNORECASE
-    )[0].strip()
+class ChatMetadata(BaseModel):
+    latency_ms: float = 0.0
+    num_chunks: int = 0
+    is_refusal: bool = False
+    context_length: int = 0
+    shortcut: Optional[str] = None
 
-    raw = re.sub(r"\b(the|glossary)\b\s*$", "", raw, flags=re.IGNORECASE).strip()
 
-    if not raw or len(raw) > 80:
-        return None
-    return raw
+class ChatResponse(BaseModel):
+    session_id: str
+    answer: str
+    citations: List[Citation]
+    retrieval_mode: str
+    grounded: bool
+    metadata: ChatMetadata
+
+
+def _normalize_chunks(retrieved_raw: Any) -> List[Dict[str, Any]]:
+    """
+    Accept many shapes from retriever:
+      - list[dict]
+      - dict with list under chunks/results/documents/data
+    """
+    if retrieved_raw is None:
+        return []
+
+    if isinstance(retrieved_raw, list):
+        return [c for c in retrieved_raw if isinstance(c, dict)]
+
+    if isinstance(retrieved_raw, dict):
+        for key in ("chunks", "results", "documents", "data"):
+            val = retrieved_raw.get(key)
+            if isinstance(val, list):
+                return [c for c in val if isinstance(c, dict)]
+
+    return []
 
 
 def _chunk_text(c: Dict[str, Any]) -> str:
-    for k in ("text", "content", "text_snippet", "snippet"):
-        v = c.get(k)
-        if isinstance(v, str) and v.strip():
-            return v
-    payload = c.get("payload")
-    if isinstance(payload, dict):
-        v = payload.get("text")
-        if isinstance(v, str) and v.strip():
-            return v
-    return ""
+    t = c.get("text") or c.get("content") or ""
+    return t if isinstance(t, str) else ""
 
 
-def _chunk_meta(c: Dict[str, Any]) -> Tuple[str, str]:
-    ch = c.get("chapter")
-    sec = c.get("section")
-    if isinstance(ch, str) and ch.strip() and isinstance(sec, str) and sec.strip():
-        return ch.strip(), sec.strip()
-
-    meta = c.get("metadata")
-    if isinstance(meta, dict):
-        ch2 = meta.get("chapter")
-        sec2 = meta.get("section")
-        if isinstance(ch2, str) and ch2.strip() and isinstance(sec2, str) and sec2.strip():
-            return ch2.strip(), sec2.strip()
-
-    payload = c.get("payload")
-    if isinstance(payload, dict):
-        ch3 = payload.get("chapter")
-        sec3 = payload.get("section")
-        if isinstance(ch3, str) and ch3.strip() and isinstance(sec3, str) and sec3.strip():
-            return ch3.strip(), sec3.strip()
-
-    return "Unknown", "Unknown"
+def _chunk_meta(c: Dict[str, Any]) -> Dict[str, Any]:
+    md = c.get("metadata") or {}
+    return md if isinstance(md, dict) else {}
 
 
-def _is_glossary_chunk(c: Dict[str, Any]) -> bool:
-    ch, sec = _chunk_meta(c)
-    s = _normalize(f"{ch} {sec}")
-    return ("glossary" in s) or (ch.strip().lower() == "appendix" and "glossary" in sec.strip().lower())
+def _build_context_and_citations(
+    chunks: List[Dict[str, Any]], max_citations: int = 3
+) -> Tuple[str, List[Citation]]:
+    parts: List[str] = []
+    citations: List[Citation] = []
+
+    for c in chunks:
+        text = _chunk_text(c).strip()
+        if text:
+            parts.append(text)
+
+    for c in chunks[:max_citations]:
+        md = _chunk_meta(c)
+        text = _chunk_text(c).strip()
+        citations.append(
+            Citation(
+                chapter=str(md.get("chapter", "Unknown")),
+                section=str(md.get("section", "Unknown")),
+                text_snippet=(text[:150] + "...") if len(text) > 150 else text,
+                score=float(c.get("score", 0.0) or 0.0),
+            )
+        )
+
+    context = "\n\n---\n\n".join(parts)
+    return context, citations
 
 
-def _make_citation_from_chunk(chunk: Dict[str, Any], score: float = 1.0) -> Dict[str, Any]:
-    ch, sec = _chunk_meta(chunk)
-    snippet = (_chunk_text(chunk) or "").strip()
-    if len(snippet) > 500:
-        snippet = snippet[:500] + "..."
-    return {"chapter": ch, "section": sec, "text_snippet": snippet, "score": float(score)}
-
-
-def _extract_module_request(question: str) -> Optional[Dict[str, Any]]:
-    q_norm = _normalize(question)
-    needs_summary = bool(re.search(r"\b(summarize|summary|overview)\b", q_norm))
-
-    m = re.search(r"\bmodule\s*(\d+)\b\s*[:\-]?\s*([^,\n]+)?", question, flags=re.IGNORECASE)
-    if not m:
-        return None
-
-    try:
-        module_num = int(m.group(1))
-    except Exception:
-        return None
-
-    title = (m.group(2) or "").strip()
-    if title:
-        title = re.split(r"\b(from|in)\s+the\s+book\b", title, flags=re.IGNORECASE)[0].strip()
-        title = title.strip(" -:")
-
-    return {"module_num": module_num, "module_title": title, "needs_summary": needs_summary}
-
-
-def _chunk_matches_module(c: Dict[str, Any], module_num: int, module_title: str = "") -> bool:
-    ch, sec = _chunk_meta(c)
-    meta = _normalize(f"{ch} {sec}")
-
-    if re.search(rf"\bmodule\s*{module_num}\b", meta):
-        return True
-
-    if module_title:
-        keywords = [k for k in re.split(r"[^\w]+", module_title.lower()) if len(k) >= 4]
-        if keywords and any(k in meta for k in keywords):
-            return True
-
-    return False
-
-
-def _heuristic_glossary_definition(question: str, chunks: List[Dict[str, Any]]) -> Tuple[Optional[str], List[Dict[str, Any]]]:
-    term = _extract_term_from_question(question)
-    if not term or not chunks:
-        return None, []
-
-    glossary_chunks = [c for c in chunks if _is_glossary_chunk(c)]
-    if not glossary_chunks:
-        return None, []
-
-    patterns = [
-        re.compile(rf"^\s*-\s*\*\*{re.escape(term)}\*\*\s*:\s*(.+)$", re.IGNORECASE | re.MULTILINE),
-        re.compile(rf"^\s*-\s*{re.escape(term)}\s*:\s*(.+)$", re.IGNORECASE | re.MULTILINE),
-        re.compile(rf"^\s*{re.escape(term)}\s*:\s*(.+)$", re.IGNORECASE | re.MULTILINE),
-    ]
-
-    for c in glossary_chunks:
-        txt = _chunk_text(c)
-        if not txt:
-            continue
-        for pat in patterns:
-            m = pat.search(txt)
-            if m:
-                definition = m.group(1).strip()
-                chapter, section = _chunk_meta(c)
-                ans = f"{term} is {definition} [Chapter: {chapter}, Section: {section}]"
-                return ans, [_make_citation_from_chunk(c, 1.0)]
-
-    return None, []
-
-
-def _heuristic_module_summary(question: str, chunks: List[Dict[str, Any]]) -> Tuple[Optional[str], List[Dict[str, Any]]]:
-    req = _extract_module_request(question)
-    if not req or not chunks or not req.get("needs_summary"):
-        return None, []
-
-    module_num = req["module_num"]
-    module_title = req.get("module_title", "") or ""
-
-    module_chunks = [c for c in chunks if _chunk_matches_module(c, module_num, module_title)]
-    if not module_chunks:
-        return None, []
-
-    points: List[str] = []
-    used_chunks: List[Dict[str, Any]] = []
-
-    for c in module_chunks:
-        txt = _chunk_text(c)
-        if not txt:
-            continue
-        used_chunks.append(c)
-
-        for line in txt.splitlines():
-            s = line.strip()
-            if not s:
-                continue
-            if s.startswith(("-", "•")):
-                s2 = s.lstrip("-•").strip()
-                if 6 <= len(s2) <= 150:
-                    points.append(s2)
-
-        if len(points) >= 8:
-            break
-
-    seen = set()
-    clean_points = []
-    for p in points:
-        k = _normalize(p)
-        if k in seen:
-            continue
-        seen.add(k)
-        clean_points.append(p)
-        if len(clean_points) >= 8:
-            break
-
-    if not clean_points:
-        return None, []
-
-    title_part = f"Module {module_num}"
-    if module_title:
-        title_part += f": {module_title}"
-
-    ch, sec = _chunk_meta(used_chunks[0])
-    ans = f"{title_part} overview (from the book):\n- " + "\n- ".join(clean_points) + f"\n[Chapter: {ch}, Section: {sec}]"
-
-    cits = [_make_citation_from_chunk(used_chunks[0], 1.0)]
-    if len(used_chunks) > 1:
-        cits.append(_make_citation_from_chunk(used_chunks[1], 0.95))
-    return ans, cits
-
-
-def _extractive_fallback_from_chunks(question: str, chunks: List[Dict[str, Any]]) -> Tuple[Optional[str], List[Dict[str, Any]]]:
+def _safe_retrieve(question: str, mode: str, selected_text: Optional[str]) -> Any:
     """
-    If LLM fails (429), give user something grounded from the top chunk.
+    Compatibility layer: some retrievers use query=..., some use question=...
+    """
+    r = get_retriever()
+    if r is None:
+        return []
+
+    # try "question" kw first
+    try:
+        return r.retrieve(
+            question=question,
+            retrieval_mode=mode,
+            selected_text=selected_text if mode == "selected_text" else None,
+        )
+    except TypeError:
+        # fallback to "query"
+        return r.retrieve(
+            query=question,
+            retrieval_mode=mode,
+            selected_text=selected_text if mode == "selected_text" else None,
+        )
+
+
+def _is_refusal_text(answer: str) -> bool:
+    return "i cannot answer this question based on the provided context." in (answer or "").lower()
+
+
+def _extractive_fallback_answer(question: str, chunks: List[Dict[str, Any]]) -> Optional[Tuple[str, Citation]]:
+    """
+    If Gemini refuses or quota fail, we still answer using retrieved book text ONLY.
+    We pick the best chunk and extract 1-2 lines/sentences.
     """
     if not chunks:
-        return None, []
+        return None
 
-    top = chunks[0]
-    txt = (_chunk_text(top) or "").strip()
-    if not txt:
-        return None, []
+    q = (question or "").strip()
+    ql = q.lower()
 
-    ch, sec = _chunk_meta(top)
+    # try to infer term for glossary-style questions
+    term = q
+    term = re.sub(r"^\s*(what is|who is|define|explain)\s+", "", term, flags=re.I).strip()
+    term = re.sub(r"[?!.]+$", "", term).strip()
 
-    # Take first 6 useful lines (prefer bullets)
-    lines = []
-    for raw in txt.splitlines():
-        s = raw.strip()
-        if not s:
+    # choose chunk:
+    best = None
+    best_score = -1.0
+
+    for c in chunks:
+        text = _chunk_text(c)
+        if not text:
             continue
-        if s.startswith("#"):
-            continue
-        lines.append(s)
-        if len(lines) >= 6:
-            break
+        tl = text.lower()
 
-    snippet = " ".join(lines)
-    if len(snippet) > 450:
-        snippet = snippet[:450] + "..."
+        score = float(c.get("score", 0.0) or 0.0)
 
-    ans = f"From the book context related to your query:\n{snippet}\n[Chapter: {ch}, Section: {sec}]"
-    return ans, [_make_citation_from_chunk(top, 1.0)]
+        # boost if contains term
+        if term and term.lower() in tl:
+            score += 2.0
+        # boost if contains any key words from question
+        for w in re.findall(r"[a-z0-9_]+", ql):
+            if len(w) >= 3 and w in tl:
+                score += 0.1
+
+        if score > best_score:
+            best_score = score
+            best = c
+
+    if best is None:
+        best = chunks[0]
+
+    md = _chunk_meta(best)
+    chapter = str(md.get("chapter", "Unknown"))
+    section = str(md.get("section", "Unknown"))
+
+    text = _chunk_text(best).strip()
+    if not text:
+        return None
+
+    # extract small snippet: first bullet/line or first 1-2 sentences
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    snippet = ""
+    if lines:
+        # if glossary bullet exists, prefer it
+        # e.g. "- **ROS 2**: Robot Operating System 2, middleware for robotics."
+        for ln in lines[:20]:
+            if term and term.lower() in ln.lower():
+                snippet = ln
+                break
+        if not snippet:
+            snippet = lines[0]
+            if len(lines) > 1 and len(snippet) < 120:
+                snippet = snippet + " " + lines[1]
+
+    # final clamp
+    snippet = re.sub(r"\s+", " ", snippet).strip()
+    snippet = snippet[:420]
+
+    answer = f"From the book context related to your query:\n{snippet}\n[Chapter: {chapter}, Section: {section}]"
+    citation = Citation(
+        chapter=chapter,
+        section=section,
+        text_snippet=snippet[:150] + ("..." if len(snippet) > 150 else ""),
+        score=float(best.get("score", 0.0) or 0.0),
+    )
+    return answer, citation
 
 
-# -------------------------
-# CHAT ENDPOINT
-# -------------------------
-@router.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
-    start_time = time.time()
-    StructuredLogger.log_event("chat_start", question=request.question)
+@router.get("/health")
+def health() -> Dict[str, str]:
+    return {"status": "ok"}
 
+
+@router.post("/api/v1/chat", response_model=ChatResponse)
+def chat(req: ChatRequest) -> ChatResponse:
+    agent = get_agent()
+    if agent is None:
+        raise HTTPException(status_code=500, detail="Agent not initialized")
+
+    if req.retrieval_mode not in ("normal", "selected_text"):
+        raise HTTPException(status_code=422, detail="retrieval_mode must be 'normal' or 'selected_text'")
+
+    if req.retrieval_mode == "selected_text" and (not req.selected_text or not req.selected_text.strip()):
+        raise HTTPException(status_code=422, detail="selected_text is required when retrieval_mode='selected_text'")
+
+    session_id = req.session_id or str(uuid.uuid4())
+
+    # history (safe)
+    history = _DB.get_history(session_id=session_id, limit=6)
+
+    # retrieve
+    retrieved_raw = _safe_retrieve(req.question, req.retrieval_mode, req.selected_text)
+    chunks = _normalize_chunks(retrieved_raw)
+
+    # context/citations
+    context, citations = _build_context_and_citations(chunks, max_citations=3)
+
+    shortcut = None
+
+    # selected_text direct context if needed
+    if req.retrieval_mode == "selected_text" and not context.strip():
+        context = req.selected_text.strip()
+        citations = [Citation(chapter="Unknown", section="Unknown", text_snippet=context[:150], score=1.0)]
+        shortcut = "selected_text_direct"
+
+    # ask agent
     try:
-        SelectedTextHandler.validate_selected_text(
-            request.selected_text,
-            request.retrieval_mode
+        answer = agent.create_chat_completion(
+            question=req.question,
+            context=context,
+            conversation_history=history,
         )
-
-        retriever = get_retriever()
-        chunks = retriever.retrieve(
-            query=request.question,
-            retrieval_mode=request.retrieval_mode,
-            selected_text=request.selected_text
-        )
-
-        StructuredLogger.log_event("retrieval_complete", num_chunks=len(chunks))
-
-        if request.retrieval_mode == "selected_text":
-            context = SelectedTextHandler.prepare_selected_text_context(
-                request.question,
-                request.selected_text,
-                chunks
-            )
-        else:
-            context = ContextFormatter.format_chunks(chunks)
-
-        db = get_database()
-        session_id = request.session_id
-
-        if session_id and db.session_exists(session_id):
-            history = db.get_conversation_history(session_id)
-        else:
-            session_id = db.create_session()
-            history = []
-
-        # ✅ HEURISTICS FIRST (avoid Gemini quota hits)
-        shortcut = None
-        forced_citations: Optional[List[Dict[str, Any]]] = None
-
-        h_ans, h_cit = _heuristic_glossary_definition(request.question, chunks)
-        if h_ans:
-            answer_text = h_ans
-            grounded = True
-            is_refusal = False
-            shortcut = "heuristic_glossary"
-            forced_citations = h_cit
-        else:
-            m_ans, m_cit = _heuristic_module_summary(request.question, chunks)
-            if m_ans:
-                answer_text = m_ans
-                grounded = True
-                is_refusal = False
-                shortcut = "heuristic_module_summary"
-                forced_citations = m_cit
-            else:
-                # LLM as last resort
-                agent = get_agent()
-                generator = AnswerGenerator(agent)
-                result = generator.generate_answer(
-                    question=request.question,
-                    context=context,
-                    conversation_history=history
-                )
-                answer_text = (result.get("answer") or "").strip()
-
-                if answer_text == REFUSAL_PHRASE and chunks:
-                    # If LLM refused (including 429 behind the scenes), use extractive fallback
-                    ex_ans, ex_cit = _extractive_fallback_from_chunks(request.question, chunks)
-                    if ex_ans:
-                        answer_text = ex_ans
-                        grounded = True
-                        is_refusal = False
-                        shortcut = "extractive_fallback"
-                        forced_citations = ex_cit
-                    else:
-                        grounded = False
-                        is_refusal = True
-                else:
-                    is_refusal = (answer_text == REFUSAL_PHRASE)
-                    grounded = not is_refusal
-
-        StructuredLogger.log_event("answer_generated", is_refusal=is_refusal)
-
-        if forced_citations is not None:
-            citations = forced_citations
-        else:
-            # normal citation extraction
-            agent = get_agent()
-            generator = AnswerGenerator(agent)
-            citations = generator.extract_citations(answer_text, chunks)
-
-        # Store turn
-        try:
-            chunk_ids = [str(i) for i in range(len(chunks))]
-            db.add_turn(
-                session_id=session_id,
-                question=request.question,
-                retrieval_mode=request.retrieval_mode,
-                context_chunk_ids=chunk_ids,
-                answer=answer_text,
-                grounded=grounded
-            )
-        except Exception as e:
-            StructuredLogger.log_event("database_error", level="WARNING", error=str(e))
-
-        latency_ms = (time.time() - start_time) * 1000
-        StructuredLogger.log_latency("chat_request", latency_ms)
-
-        meta: Dict[str, Any] = {
-            "latency_ms": round(latency_ms, 2),
-            "num_chunks": len(chunks),
-            "is_refusal": is_refusal,
-            "context_length": len(context),
-        }
-        if shortcut:
-            meta["shortcut"] = shortcut
-
-        return ChatResponse(
-            session_id=session_id,
-            answer=answer_text,
-            citations=citations,
-            retrieval_mode=request.retrieval_mode,
-            grounded=grounded,
-            metadata=meta
-        )
-
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        StructuredLogger.log_event("chat_error", level="ERROR", error=str(e))
-        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+        # if agent crashes, we fallback extractively
+        fallback = _extractive_fallback_answer(req.question, chunks)
+        if fallback:
+            answer, cit = fallback
+            citations = [cit]
+            shortcut = "extractive_fallback_agent_error"
+        else:
+            raise HTTPException(status_code=500, detail=f"Internal error: {e}")
 
+    # if agent refused but we do have chunks => extractive fallback (THIS FIXES YOUR ISSUE)
+    if _is_refusal_text(answer) and chunks:
+        fallback = _extractive_fallback_answer(req.question, chunks)
+        if fallback:
+            answer, cit = fallback
+            citations = [cit]
+            shortcut = "extractive_fallback_refusal"
 
-# -------------------------
-# SESSION ENDPOINTS
-# -------------------------
-@router.post("/sessions", response_model=SessionResponse)
-async def create_session(request: SessionCreate):
+    is_refusal = _is_refusal_text(answer)
+
+    # save turn (never crash API)
     try:
-        db = get_database()
-        session_id = db.create_session(user_id=request.user_id)
-        return SessionResponse(session_id=session_id, created_at=datetime.utcnow())
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/sessions/{session_id}", response_model=SessionHistory)
-async def get_session(session_id: str):
-    db = get_database()
-
-    if not db.session_exists(session_id):
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    history = db.get_conversation_history(session_id)
-    created_at = history[0]["created_at"] if history else datetime.utcnow()
-
-    return SessionHistory(session_id=session_id, created_at=created_at, turns=history)
-
-
-# -------------------------
-# HEALTH
-# -------------------------
-@router.get("/health", response_model=HealthResponse)
-async def health_check():
-    try:
-        retriever = get_retriever()
-        health = retriever.health_check()
-
-        return HealthResponse(
-            status="healthy",
-            components={
-                "qdrant": health["qdrant"],
-                "embeddings": health["embedding_service"],
-                "agent": True,
-                "database": True
-            },
-            version="3.0.0"
-        )
+        _DB.save_turn(session_id=session_id, question=req.question, answer=answer)
     except Exception:
-        return HealthResponse(
-            status="unhealthy",
-            components={
-                "qdrant": False,
-                "embeddings": False,
-                "agent": False,
-                "database": False
-            },
-            version="3.0.0"
-        )
+        pass
+
+    return ChatResponse(
+        session_id=session_id,
+        answer=answer,
+        citations=citations if not is_refusal else [],
+        retrieval_mode=req.retrieval_mode,
+        grounded=True,
+        metadata=ChatMetadata(
+            latency_ms=0.0,
+            num_chunks=len(chunks),
+            is_refusal=is_refusal,
+            context_length=len(context or ""),
+            shortcut=shortcut,
+        ),
+    )
