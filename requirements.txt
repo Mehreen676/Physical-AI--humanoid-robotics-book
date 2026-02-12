@@ -1,0 +1,22 @@
+﻿# FastAPI and server
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+
+# Env
+python-dotenv==1.0.0
+
+# Google Gemini
+google-generativeai==0.3.2
+
+# Database
+psycopg2-binary==2.9.11
+
+# Pydantic
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# Retrieval
+qdrant-client>=1.7.0
+numpy>=1.26.0
+requests>=2.31.0
