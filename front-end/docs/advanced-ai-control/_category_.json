@@ -1,0 +1,5 @@
+﻿{
+  "label": "Advanced AI & Motion Control",
+  "position": 5,
+  "link": { "type": "doc", "id": "advanced-ai-control/intro" }
+}

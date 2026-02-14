@@ -1,0 +1,5 @@
+﻿{
+  "label": "Hardware Foundations",
+  "position": 3,
+  "link": { "type": "doc", "id": "hardware-basics/intro" }
+}
