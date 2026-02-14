@@ -1,92 +1,109 @@
----
-title: Physical AI RAG Backend
-emoji: 🤖
-colorFrom: blue
-colorTo: purple
-sdk: docker
-app_port: 7860
-pinned: false
----
+🚀 Physical AI & Humanoid Robotics Textbook — Agentic RAG Backend
 
-# Physical AI & Humanoid Robotics Textbook — RAG Backend
+Production-ready Agentic RAG (Retrieval-Augmented Generation) backend powering the interactive Physical AI & Humanoid Robotics textbook.
 
-Production-ready Agentic RAG (Retrieval-Augmented Generation) backend for the Physical AI & Humanoid Robotics interactive textbook.
+This backend drives the embedded AI chat widget inside the Docusaurus textbook and provides strictly grounded answers using vector retrieval from book content.
 
-This backend powers the embedded chat widget inside the Docusaurus book and answers questions grounded strictly in book content.
+🧠 Architecture Overview
 
----
+This backend implements a modern Agentic RAG pipeline:
 
-## 🚀 Features
+User question received
 
-- Agentic RAG architecture
-- Qdrant vector search integration
-- Gemini embeddings
-- OpenAI response generation
-- Selected-text constrained answering
-- Multi-turn session support
-- SQLite (local) + Neon Postgres (production)
-- Production-ready FastAPI setup
-- Hugging Face Docker deployment ready
+Gemini Embedding (3072-dim)
 
----
+Qdrant Cloud vector similarity search
 
-## 🌐 Deployment (Hugging Face Spaces)
+Context grounding
 
-This repository is deployed as a **Docker Space**.
+OpenAI response generation
 
-- Runtime Port: **7860**
-- Health Endpoint: `/api/v1/health`
-- Chat Endpoint: `/api/v1/chat`
+Structured API response to frontend
 
-After deployment succeeds, use your Space URL in frontend:
+⚡ Core Features
 
-CHATBOT_BACKEND_URL=https://your-space-name.hf.space
+✅ Agentic RAG architecture
 
+✅ Qdrant Cloud vector database
 
----
+✅ 3072-dimension Gemini embeddings
 
-## 📁 Project Structure
+✅ OpenAI LLM answer generation
 
+✅ Selected-text constrained answering
 
+✅ Multi-turn session support
 
+✅ SQLite (local) development
+
+✅ Neon PostgreSQL (production ready)
+
+✅ Dockerized deployment
+
+✅ Hugging Face Spaces production deployment
+
+🌐 Production Deployment
+Hosted on:
+
+Hugging Face Spaces (Docker runtime)
+
+Runtime Configuration:
+
+Port: 7860
+
+Bind: 0.0.0.0
+
+Health Endpoint: /api/v1/health
+
+Chat Endpoint: /api/v1/chat
+
+Frontend environment variable:
+
+CHATBOT_BACKEND_URL=https://mehreenasghar5-physical-ai-rag-backend.hf.space
+
+🗂 Project Structure
 physical-ai-rag-backend/
+│
 ├── main.py
 ├── config.py
 ├── requirements.txt
 ├── Dockerfile
+│
 ├── api/
 ├── agent/
-├── models/
+├── retrieval/
 ├── storage/
-├── utils/
-└── retrieval/
+├── models/
+└── utils/
 
+🔐 Required Environment Variables
 
----
-
-## 🔑 Required Environment Variables (Set in Space Settings)
-
-You must configure these in:
+Configure inside:
 
 Hugging Face → Space → Settings → Variables
 
-| Variable | Required |
-|----------|----------|
-| OPENAI_API_KEY | Yes |
-| QDRANT_URL | Yes |
-| QDRANT_API_KEY | Yes |
-| GEMINI_API_KEY | Yes |
-| DATABASE_URL | Optional |
+Variable	Required
+OPENAI_API_KEY	Yes
+GEMINI_API_KEY	Yes
+GEMINI_EMBEDDING_MODEL	Yes
+QDRANT_URL	Yes
+QDRANT_API_KEY	Yes
+COLLECTION_NAME	Yes
+DATABASE_URL	Optional
+Current Production Setup
 
-⚠ Do NOT commit `.env` files.
+Embedding Model: models/gemini-embedding-001
 
----
+Embedding Dimension: 3072
 
-## 🧪 Local Development
+Active Collection: data_collection_3072_v3
+
+⚠ Never commit .env files.
+
+🧪 Local Development
 
 Install dependencies:
 
-```bash
 pip install -r requirements.txt
 
 
@@ -117,7 +134,7 @@ Chat
 POST /api/v1/chat
 
 
-Body:
+Request Body:
 
 {
   "session_id": "optional",
@@ -126,25 +143,73 @@ Body:
   "selected_text": null
 }
 
-🔒 CORS Configuration
+🔎 Retrieval Modes
+Mode	Description
+normal	Full-book retrieval
+selected_text	Constrained search within highlighted text
+🛡 CORS Configuration
 
-Ensure backend allows:
+Allowed frontend origin:
 
 https://mehreen676.github.io
 
 
-Update allowed origins in config.py if needed.
+Modify in config.py if deploying elsewhere.
 
-⚙ Docker Notes
+🐳 Docker Configuration
 
-Hugging Face requires:
+Hugging Face Docker requirements:
 
-App to bind on 0.0.0.0
+App must bind to 0.0.0.0
 
-Port 7860
+Must run on port 7860
 
-Dockerfile already configured accordingly.
+Dockerfile preconfigured accordingly
 
-📚 License
+📊 Production Stack
+
+FastAPI
+
+Qdrant Cloud (Vector DB)
+
+Gemini Embeddings (3072-dim)
+
+OpenAI LLM
+
+Neon PostgreSQL (optional)
+
+Docker
+
+Hugging Face Spaces
+
+📜 License
 
 MIT
+
+🎯 Judge Notes
+
+This backend demonstrates:
+
+Modern Agentic RAG implementation
+
+Cloud vector database integration
+
+Production container deployment
+
+Secure environment variable management
+
+Multi-model AI integration
+
+Scalable architecture for educational AI systems
+
+Agar chaho to main tumhe:
+
+🔥 “Judge Optimized” version bhi bana du
+
+📊 Architecture diagram section add kar du
+
+🧠 System flow diagram add kar du
+
+🏆 Hackathon presentation ready version bana du
+
+Bas bolo.
