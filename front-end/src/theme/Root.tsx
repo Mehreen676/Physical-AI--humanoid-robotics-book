@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { Props } from "@theme/Root";
+import useDocusaurusContext from "@docusaurus/useDocusaurusContext";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -12,10 +13,23 @@ function getSelectedText() {
   }
 }
 
+function normalizeApiUrl(raw: string) {
+  const u = (raw || "").trim();
+  if (!u) return "http://127.0.0.1:8000/api/v1/chat";
+  // if already points to /api/v1/chat, keep as-is
+  if (u.includes("/api/v1/chat")) return u;
+  // remove trailing slash then append
+  const base = u.endsWith("/") ? u.slice(0, -1) : u;
+  return `${base}/api/v1/chat`;
+}
+
 export default function Root({ children }: Props) {
+  const { siteConfig } = useDocusaurusContext();
+
   const API_URL =
-    (typeof window !== "undefined" && (window as any).__RAG_API_URL__) ||
-    "http://127.0.0.1:8000/api/v1/chat";
+    typeof window !== "undefined" && (window as any).__RAG_API_URL__
+      ? normalizeApiUrl(String((window as any).__RAG_API_URL__))
+      : normalizeApiUrl(String((siteConfig.customFields as any)?.ragApiBaseUrl || ""));
 
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");

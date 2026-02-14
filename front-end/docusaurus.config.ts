@@ -19,6 +19,9 @@ const config: Config = {
 
   onBrokenLinks: "throw",
 
+  // ✅ GitHub Pages trailing slash warning fix (no UI change)
+  trailingSlash: true,
+
   markdown: {
     hooks: { onBrokenMarkdownLinks: "warn" },
   },
@@ -30,6 +33,12 @@ const config: Config = {
       en: { label: "English" },
       ur: { label: "اردو" },
     },
+  },
+
+  // ✅ ONLY backend base URL added (no UI change)
+  customFields: {
+    // Hugging Face Space "App" URL (NOT huggingface.co/spaces page)
+    ragApiBaseUrl: "https://mehreenasghar5-physical-ai-rag-backend.hf.space",
   },
 
   presets: [
